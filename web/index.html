@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Подбор вентиляционной шахты</title>
+</head>
+<body>
+  <h1>Подбор вентиляционной шахты</h1>
+
+  <form id="search-form">
+    <label for="тип">Тип шахты:</label>
+    <select name="тип" id="тип">
+      <option value="">Выберите тип</option>
+      <option value="вытяжная">вытяжная</option>
+      <option value="приточная активная">приточная активная</option>
+      <option value="приточная пассивная">приточная пассивная</option>
+      <option value="приточная с подмешиванием">приточная с подмешиванием</option>
+    </select>
+
+    <br />
+
+    <label for="диаметр">Диаметр:</label>
+    <select name="диаметр" id="диаметр">
+      <option value="">Выберите диаметр</option>
+      <option value="560">560</option>
+      <option value="710">710</option>
+      <option value="800">800</option>
+    </select>
+
+    <br />
+
+    <div id="advanced-options" style="display: none;">
+      <label for="клапан">Тип клапана:</label>
+      <select name="клапан" id="клапан"></select>
+      <div id="position-wrapper" style="display: none;">
+        <label for="расположение">Расположение клапана:</label>
+        <select name="расположение" id="расположение">
+          <option value="">Выберите расположение</option>
+          <option value="низ">низ</option>
+          <option value="верх">верх</option>
+        </select>
+      </div>
+    </div>
+
+    <br />
+
+    <button type="submit">Найти</button>
+  </form>
+
+  <div id="results"></div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const form = document.getElementById("search-form");
+      const typeField = form.elements["тип"];
+      const diameterField = form.elements["диаметр"];
+      const advancedOptions = document.getElementById("advanced-options");
+      const valveField = form.elements["клапан"];
+
+      function updateAdvancedOptions() {
+        const type = typeField.value;
+        const diameter = diameterField.value;
+        advancedOptions.style.display = (type && diameter) ? "block" : "none";
+
+        // Очистить и пересобрать список клапанов
+        if (valveField) {
+          valveField.innerHTML = "";
+          valveField.value = "";
+
+          let options = [];
+          if (type === "вытяжная") {
+            options = ["поворотный", "гравитационный"];
+          } else if (type === "приточная активная" || type === "приточная с подмешиванием") {
+            options = ["поворотный"];
+          } else if (type === "приточная пассивная") {
+            options = ["поворотный", "двустворчатый"];
+          }
+
+          options.forEach(val => {
+            const opt = document.createElement("option");
+            opt.value = val;
+            opt.textContent = val;
+            valveField.appendChild(opt);
+          });
+          updateMotorFields();
+        }
+      }
+
+      function updateMotorFields() {
+        const type = typeField.value;
+
+        // Удаление старых полей, если есть
+        const existingPower = document.getElementById("мощность");
+        const existingPhase = document.getElementById("фазность");
+        const existingPowerLabel = document.querySelector("label[for='мощность']");
+        const existingPhaseLabel = document.querySelector("label[for='фазность']");
+        if (existingPower) existingPower.remove();
+        if (existingPhase) existingPhase.remove();
+        if (existingPowerLabel) existingPowerLabel.remove();
+        if (existingPhaseLabel) existingPhaseLabel.remove();
+
+        // Фазность и мощность только для активных шахт
+        const isActive = type === "вытяжная" || type === "приточная активная";
+
+        if (isActive) {
+          // Фазность
+          const phaseLabel = document.createElement("label");
+          phaseLabel.textContent = "Фазность двигателя:";
+          phaseLabel.htmlFor = "фазность";
+
+          const phaseSelect = document.createElement("select");
+          phaseSelect.name = "фазность";
+          phaseSelect.id = "фазность";
+          [
+            { val: "6e", label: "6E" },
+            { val: "6d", label: "6D" }
+          ].forEach(({ val, label }) => {
+            const opt = document.createElement("option");
+            opt.value = val;
+            opt.textContent = label;
+            opt.setAttribute("data-search", label.toLowerCase());
+            phaseSelect.appendChild(opt);
+          });
+
+          // Мощность
+          const powerLabel = document.createElement("label");
+          powerLabel.textContent = "Мощность двигателя (Вт):";
+          powerLabel.htmlFor = "мощность";
+
+          const powerSelect = document.createElement("select");
+          powerSelect.name = "мощность";
+          powerSelect.id = "мощность";
+          ["370", "750"].forEach(val => {
+            const opt = document.createElement("option");
+            opt.value = val;
+            opt.textContent = val;
+            powerSelect.appendChild(opt);
+          });
+
+          advancedOptions.appendChild(document.createElement("br"));
+          advancedOptions.appendChild(phaseLabel);
+          advancedOptions.appendChild(phaseSelect);
+          advancedOptions.appendChild(document.createElement("br"));
+          advancedOptions.appendChild(powerLabel);
+          advancedOptions.appendChild(powerSelect);
+        }
+
+        const positionWrapper = document.getElementById("position-wrapper");
+        const positionField = document.getElementById("расположение");
+        if (positionWrapper && positionField) {
+          if (valveField.value === "поворотный") {
+            positionWrapper.style.display = "block";
+          } else {
+            positionWrapper.style.display = "none";
+            positionField.value = "";
+          }
+        }
+      }
+
+      typeField.addEventListener("change", () => {
+        updateAdvancedOptions();
+        updateMotorFields();
+      });
+
+      diameterField.addEventListener("change", updateAdvancedOptions);
+      valveField.addEventListener("change", () => {
+        updateMotorFields();
+        updateAdvancedOptions();
+      });
+    });
+  </script>
+  <script>
+    document.getElementById("search-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const тип = document.getElementById("тип").value;
+      const диаметр = document.getElementById("диаметр").value;
+      const клапан = document.getElementById("клапан")?.value || "";
+      const фазность = document.getElementById("фазность")?.value || "";
+      const мощность = document.getElementById("мощность")?.value || "";
+      const расположение = document.getElementById("расположение")?.value || "";
+
+      console.log({ тип, диаметр, клапан, фазность, мощность, расположение });
+
+      const response = await fetch("/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ тип, диаметр, клапан, фазность, мощность, расположение }),
+      });
+
+      const resultDiv = document.getElementById("results");
+      const data = await response.json();
+
+      if (data.length > 0) {
+        resultDiv.innerHTML = data.map(item => {
+          return `<div style="white-space: pre-wrap; margin-bottom: 1em;">
+            <strong>Артикул:</strong> ${item.article || "-"}<br />
+            <strong>Наименование:</strong> ${item.name || "-"}<br />
+            <strong>Цена:</strong> ${item.price || "-"}
+          </div>`;
+        }).join('');
+      } else {
+        console.log("No matches found for:", data);
+        resultDiv.textContent = "Ничего не найдено.";
+      }
+    });
+  </script>
+</body>
+</html>
