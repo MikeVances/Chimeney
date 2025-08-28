@@ -91,9 +91,38 @@
       fldRasp.required = true;
       colGrav.classList.add('hidden');
       fldGrav.required = false; fldGrav.value = '';
+    } else if(t === 'приточная с подмешиванием'){
+      // Для VBR (приточная с подмешиванием) всегда поворотный клапан + расположение низ
+      if(fldKlapan.value !== 'поворотный') fldKlapan.value = 'поворотный';
+      Array.from(fldKlapan.options).forEach(opt => {
+        if(opt.value !== 'поворотный') opt.disabled = true; else opt.disabled = false;
+      });
+      colRasp.classList.remove('hidden');
+      fldRasp.value = 'низ';
+      fldRasp.disabled = true;
+      fldRasp.required = true;
+      colGrav.classList.add('hidden');
+      fldGrav.required = false; fldGrav.value = '';
     } else {
       // вернуть опции в исходное состояние
       Array.from(fldKlapan.options).forEach(opt => { if(opt.value === 'гравитационный') opt.disabled = false; });
+      colRasp.classList.add('hidden');
+      fldRasp.required = false;
+      fldRasp.disabled = false;
+      colGrav.classList.remove('hidden');
+      fldGrav.required = true;
+      fldGrav.disabled = false;
+    }
+
+    // Ограничение верхней части для приточных шахт (VBA, VBP, VBR)
+    if(t === 'приточная активная' || t === 'приточная пассивная' || t === 'приточная с подмешиванием'){
+      fldTop.value = 'зонт';
+      Array.from(fldTop.options).forEach(opt => { opt.disabled = (opt.value !== 'зонт'); });
+      fldTop.disabled = true; // полный запрет изменения
+    } else {
+      // восстановить доступность опций верхней части
+      Array.from(fldTop.options).forEach(opt => { opt.disabled = false; });
+      fldTop.disabled = false;
     }
   }
 

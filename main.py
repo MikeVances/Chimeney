@@ -264,6 +264,62 @@ def pick_korona():
     return _find(lambda x: _name_has(x, "корона"))
 
 
+# New helper for listing available drives
+def list_available_drives(max_items: int = 8):
+    """Возвращает список приводов для подсказки пользователю.
+    1) Сначала берём артикулы из белого списка (если есть в каталоге);
+    2) Затем добавляем найденные по строгому фильтру ("электропривод"|категория "привод"),
+       исключая любые секции/шахты/клапаны.
+    """
+    # Белый список (из номенклатуры):
+    whitelist = {
+        "7547", "29299", "3557", "21370", "1191",
+        "84015", "84935", "84016", "84934",
+    }
+
+    picked = []
+    seen = set()
+
+    # 1) по whitelists — в фиксированном порядке
+    for art in [
+        "7547", "29299", "3557", "21370", "1191",
+        "84015", "84935", "84016", "84934",
+    ]:
+        it = by_art.get(art)
+        if it and art not in seen:
+            picked.append(it)
+            seen.add(art)
+        if len(picked) >= max_items:
+            return picked
+
+    # 2) строгий фильтр по каталогу
+    def is_true_drive(x: Dict[str, Any]) -> bool:
+        nm = _norm(x.get("name"))
+        cat = _norm(x.get("category"))
+        # ключевые слова для приводов
+        is_drive_kw = ("электропривод" in nm) or ("привод" in cat) or ("bvm" in nm)
+        if not is_drive_kw:
+            return False
+        # исключаем явные не-приводы
+        bad = ("секция" in nm) or ("vbv" in nm) or ("vba" in nm) or ("vbr" in nm) or ("клапан" in nm)
+        return not bad
+
+    for x in items:
+        art = str(x.get("artikul") or x.get("article") or "").strip()
+        if art and art not in seen and is_true_drive(x):
+            picked.append(x)
+            seen.add(art)
+        if len(picked) >= max_items:
+            break
+
+    return picked[:max_items]
+
+# Helper for VBR подмешивание
+def pick_vbr_podmesh(diam: str):
+    # Ищем секцию подмешивания по имени + диаметр
+    return _find(lambda x: _name_has(x, "подмешив") and (diam in _norm(x.get("name"))))
+
+
 @app.route("/api/select", methods=["POST"])
 def api_select():
     payload = request.get_json(silent=True) or {}
@@ -279,6 +335,17 @@ def api_select():
         payload["tip_klapana"] = "pov"
         klapan = "pov"
         messages.append("Для VBA выбран поворотный клапан (гравитационного не бывает)")
+
+    # 2.1b) Для VBR клапан всегда поворотный и расположение всегда НИЗ
+    if tip == "VBR":
+        if klapan != "pov":
+            payload["tip_klapana"] = "pov"
+            klapan = "pov"
+            messages.append("Для VBR выбран поворотный клапан (гравитационного/двустворчатого не бывает)")
+        # расположение только низ
+        if _norm(payload.get("raspolozhenie")) != "niz":
+            payload["raspolozhenie"] = "niz"
+            messages.append("Для VBR расположение клапана всегда 'низ'")
 
     # 2.2) Для моторных типов (VBV/VBA/VBR) мощность определяется диаметром
     required_power = {"560": "370", "710": "370", "800": "750"}.get(diam)
@@ -313,13 +380,32 @@ def api_select():
         base = by_art.get(art, {"artikul": art, "name": f"Комплект шахты ({key})"})
         result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
 
-    # 3) Верхняя часть: зонт/раструб
+    # 2.3) Верхняя часть у приточных — только зонт; для VBR зонт обязателен
+    tip_upper = str(tip).upper()
     top = payload.get("verhnyaya_chast")
+    if tip_upper in ("VBA", "VBP"):
+        if _norm(top) == "rastrub":
+            messages.append("Для приточных шахт верхняя часть 'раструб' недоступна — установлен 'зонт'")
+            top = "zont"
+    elif tip_upper == "VBR":
+        # всегда зонт
+        top = "zont"
+
+    # 3) Верхняя часть: зонт/раструб
     if top:
         it = pick_top_part(top, diam)
         if it:
             art = str(it.get("artikul") or it.get("article"))
             result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
+
+    # 3.1) Для VBR всегда добавляем секцию подмешивания
+    if tip_upper == "VBR":
+        it = pick_vbr_podmesh(diam)
+        if it:
+            art = str(it.get("artikul") or it.get("article"))
+            result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
+        else:
+            messages.append(f"Секция подмешивания для D{diam} не найдена в каталоге")
 
     # 4) Герметизация (мембрана/лента)
     g = payload.get("germetizatsiya") or {}
@@ -396,6 +482,15 @@ def api_select():
                 art = str(it.get("artikul") or it.get("article"))
                 result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
 
+    # Напоминание про привод: для поворотного/двустворчатого клапана (все кроме гравитационного)
+    if klapan in ("pov", "dvustv"):
+        drives = list_available_drives()
+        if drives:
+            lines = [f"• {str(d.get('artikul') or d.get('article'))} — {d.get('name','')}" for d in drives]
+            listing = "<br>".join(lines)
+            messages.append(f"Не забудьте добавить привод! Доступные приводы:<br>{listing}")
+        else:
+            messages.append("Не забудьте добавить привод! (в каталоге приводы не найдены)")
     out = list(result.values())
     if not out:
         return jsonify({"results": [], "message": "Ничего не найдено" if not messages else "; ".join(messages)})
