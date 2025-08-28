@@ -3,208 +3,145 @@
 <head>
   <meta charset="UTF-8" />
   <title>Подбор вентиляционной шахты</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; line-height: 1.4 }
+    fieldset { margin-bottom: 16px; }
+    label { display:block; margin: 8px 0 4px; }
+    .row { display:flex; flex-wrap:wrap; gap:16px; }
+    .col { min-width: 220px; flex: 1; }
+    .hidden { display:none; }
+    .result-item { white-space: pre-wrap; margin: 8px 0 12px; padding: 8px; border: 1px solid #eee; border-radius: 10px; }
+  </style>
 </head>
 <body>
   <h1>Подбор вентиляционной шахты</h1>
 
   <form id="search-form">
-    <label for="тип">Тип шахты:</label>
-    <select name="тип" id="тип">
-      <option value="">Выберите тип</option>
-      <option value="вытяжная">вытяжная</option>
-      <option value="приточная активная">приточная активная</option>
-      <option value="приточная пассивная">приточная пассивная</option>
-      <option value="приточная с подмешиванием">приточная с подмешиванием</option>
-    </select>
-
-    <br />
-
-    <label for="диаметр">Диаметр:</label>
-    <select name="диаметр" id="диаметр">
-      <option value="">Выберите диаметр</option>
-      <option value="560">560</option>
-      <option value="710">710</option>
-      <option value="800">800</option>
-    </select>
-
-    <br />
-
-    <div id="advanced-options" style="display: none;">
-      <label for="клапан">Тип клапана:</label>
-      <select name="клапан" id="клапан"></select>
-      <div id="position-wrapper" style="display: none;">
-        <label for="расположение">Расположение клапана:</label>
-        <select name="расположение" id="расположение">
-          <option value="">Выберите расположение</option>
-          <option value="низ">низ</option>
-          <option value="верх">верх</option>
-        </select>
+    <fieldset>
+      <legend>Базовые параметры</legend>
+      <div class="row">
+        <div class="col">
+          <label for="тип">Тип шахты</label>
+          <select id="тип" name="тип" required>
+            <option value="">— выберите —</option>
+            <option value="вытяжная">вытяжная</option>
+            <option value="приточная активная">приточная активная</option>
+            <option value="приточная пассивная">приточная пассивная</option>
+            <option value="приточная с подмешиванием">приточная с подмешиванием</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="диаметр">Диаметр</label>
+          <select id="диаметр" name="диаметр" required>
+            <option value="">— выберите —</option>
+            <option value="560">560</option>
+            <option value="710">710</option>
+            <option value="800">800</option>
+            <option value="1100">1100</option>
+          </select>
+        </div>
       </div>
-    </div>
+    </fieldset>
 
-    <br />
+    <fieldset>
+      <legend>Клапан</legend>
+      <div class="row">
+        <div class="col">
+          <label for="тип_клапана">Тип клапана</label>
+          <select id="тип_клапана" name="тип_клапана" required>
+            <option value="">— выберите —</option>
+            <option value="поворотный">поворотный</option>
+            <option value="гравитационный">гравитационный</option>
+            <option value="двустворчатый">двустворчатый</option>
+          </select>
+        </div>
+        <div class="col" id="col-расположение">
+          <label for="расположение_клапана">Расположение (для поворотного)</label>
+          <select id="расположение_клапана" name="расположение_клапана">
+            <option value="">— выберите —</option>
+            <option value="низ">низ</option>
+            <option value="верх">верх</option>
+          </select>
+        </div>
+        <div class="col" id="col-тип-гравитационного">
+          <label for="тип_гравитационного">Тип гравитационного</label>
+          <select id="тип_гравитационного" name="тип_гравитационного">
+            <option value="">— выберите —</option>
+            <option value="внутренний">внутренний</option>
+            <option value="внешний">внешний</option>
+          </select>
+        </div>
+      </div>
+    </fieldset>
 
-    <button type="submit">Найти</button>
+    <fieldset>
+      <legend>Привод и питание</legend>
+      <div class="row">
+        <div class="col">
+          <label for="тип_мотора">Тип мотора</label>
+          <select id="тип_мотора" name="тип_мотора">
+            <option value="">— выберите —</option>
+            <option value="6e">6E (однофазный)</option>
+            <option value="6d">6D (трёхфазный)</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="мощность">Мощность, Вт</label>
+          <select id="мощность" name="мощность">
+            <option value="">— выберите —</option>
+            <option value="370">370</option>
+            <option value="750">750</option>
+          </select>
+        </div>
+      </div>
+      <p style="margin:8px 0 0; font-size: 12px; color:#666">Для «вытяжной», «приточной активной» и «с подмешиванием» указывайте тип мотора и мощность.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Верхняя часть и опции</legend>
+      <div class="row">
+        <div class="col">
+          <label for="верхняя_часть">Верхняя часть</label>
+          <select id="верхняя_часть" name="верхняя_часть">
+            <option value="">— выберите —</option>
+            <option value="зонт">зонт</option>
+            <option value="раструб">раструб</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Герметизация</label>
+          <div><label><input type="checkbox" id="герм_мембрана"> Мембрана</label></div>
+          <div><label><input type="checkbox" id="герм_лента"> Лента битумная</label></div>
+        </div>
+        <div class="col">
+          <label>Дополнительно</label>
+          <div><label><input type="checkbox" id="автомат"> Автомат защиты</label></div>
+          <div><label><input type="checkbox" id="каплеулавливатель"> Каплеулавливатель</label></div>
+        </div>
+        <div class="col hidden" id="col-корона">
+          <label>Распределитель</label>
+          <div><label><input type="checkbox" id="корона"> Корона</label></div>
+          <small style="color:#666">Показывается только для VBA/VBP при поворотном или гравитационном клапане</small>
+        </div>
+        <div class="col">
+          <label for="удлинение">Удлинение (м)</label>
+          <input type="number" id="удлинение" name="удлинение" value="0" min="0" step="1" />
+        </div>
+      </div>
+    </fieldset>
+
+    <p style="margin-top:8px; text-align:center">
+      <button type="submit" style="font-size:1.25em; padding:10px 22px">Подобрать</button>
+    </p>
   </form>
 
-  <div id="results"></div>
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const form = document.getElementById("search-form");
-      const typeField = form.elements["тип"];
-      const diameterField = form.elements["диаметр"];
-      const advancedOptions = document.getElementById("advanced-options");
-      const valveField = form.elements["клапан"];
+  <h2>Результат</h2>
+  <div id="result"></div>
+  <p style="margin-top:16px; text-align:center">
+    <button type="button" id="new-calc-btn" style="font-size:1.1em; padding:8px 16px">Сделать новый расчёт</button>
+  </p>
 
-      function updateAdvancedOptions() {
-        const type = typeField.value;
-        const diameter = diameterField.value;
-        advancedOptions.style.display = (type && diameter) ? "block" : "none";
-
-        // Очистить и пересобрать список клапанов
-        if (valveField) {
-          valveField.innerHTML = "";
-          valveField.value = "";
-
-          let options = [];
-          if (type === "вытяжная") {
-            options = ["поворотный", "гравитационный"];
-          } else if (type === "приточная активная" || type === "приточная с подмешиванием") {
-            options = ["поворотный"];
-          } else if (type === "приточная пассивная") {
-            options = ["поворотный", "двустворчатый"];
-          }
-
-          options.forEach(val => {
-            const opt = document.createElement("option");
-            opt.value = val;
-            opt.textContent = val;
-            valveField.appendChild(opt);
-          });
-          updateMotorFields();
-        }
-      }
-
-      function updateMotorFields() {
-        const type = typeField.value;
-
-        // Удаление старых полей, если есть
-        const existingPower = document.getElementById("мощность");
-        const existingPhase = document.getElementById("фазность");
-        const existingPowerLabel = document.querySelector("label[for='мощность']");
-        const existingPhaseLabel = document.querySelector("label[for='фазность']");
-        if (existingPower) existingPower.remove();
-        if (existingPhase) existingPhase.remove();
-        if (existingPowerLabel) existingPowerLabel.remove();
-        if (existingPhaseLabel) existingPhaseLabel.remove();
-
-        // Фазность и мощность только для активных шахт
-        const isActive = type === "вытяжная" || type === "приточная активная";
-
-        if (isActive) {
-          // Фазность
-          const phaseLabel = document.createElement("label");
-          phaseLabel.textContent = "Фазность двигателя:";
-          phaseLabel.htmlFor = "фазность";
-
-          const phaseSelect = document.createElement("select");
-          phaseSelect.name = "фазность";
-          phaseSelect.id = "фазность";
-          [
-            { val: "6e", label: "6E" },
-            { val: "6d", label: "6D" }
-          ].forEach(({ val, label }) => {
-            const opt = document.createElement("option");
-            opt.value = val;
-            opt.textContent = label;
-            opt.setAttribute("data-search", label.toLowerCase());
-            phaseSelect.appendChild(opt);
-          });
-
-          // Мощность
-          const powerLabel = document.createElement("label");
-          powerLabel.textContent = "Мощность двигателя (Вт):";
-          powerLabel.htmlFor = "мощность";
-
-          const powerSelect = document.createElement("select");
-          powerSelect.name = "мощность";
-          powerSelect.id = "мощность";
-          ["370", "750"].forEach(val => {
-            const opt = document.createElement("option");
-            opt.value = val;
-            opt.textContent = val;
-            powerSelect.appendChild(opt);
-          });
-
-          advancedOptions.appendChild(document.createElement("br"));
-          advancedOptions.appendChild(phaseLabel);
-          advancedOptions.appendChild(phaseSelect);
-          advancedOptions.appendChild(document.createElement("br"));
-          advancedOptions.appendChild(powerLabel);
-          advancedOptions.appendChild(powerSelect);
-        }
-
-        const positionWrapper = document.getElementById("position-wrapper");
-        const positionField = document.getElementById("расположение");
-        if (positionWrapper && positionField) {
-          if (valveField.value === "поворотный") {
-            positionWrapper.style.display = "block";
-          } else {
-            positionWrapper.style.display = "none";
-            positionField.value = "";
-          }
-        }
-      }
-
-      typeField.addEventListener("change", () => {
-        updateAdvancedOptions();
-        updateMotorFields();
-      });
-
-      diameterField.addEventListener("change", updateAdvancedOptions);
-      valveField.addEventListener("change", () => {
-        updateMotorFields();
-        updateAdvancedOptions();
-      });
-    });
-  </script>
-  <script>
-    document.getElementById("search-form").addEventListener("submit", async function (e) {
-      e.preventDefault();
-
-      const тип = document.getElementById("тип").value;
-      const диаметр = document.getElementById("диаметр").value;
-      const клапан = document.getElementById("клапан")?.value || "";
-      const фазность = document.getElementById("фазность")?.value || "";
-      const мощность = document.getElementById("мощность")?.value || "";
-      const расположение = document.getElementById("расположение")?.value || "";
-
-      console.log({ тип, диаметр, клапан, фазность, мощность, расположение });
-
-      const response = await fetch("/search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ тип, диаметр, клапан, фазность, мощность, расположение }),
-      });
-
-      const resultDiv = document.getElementById("results");
-      const data = await response.json();
-
-      if (data.length > 0) {
-        resultDiv.innerHTML = data.map(item => {
-          return `<div style="white-space: pre-wrap; margin-bottom: 1em;">
-            <strong>Артикул:</strong> ${item.article || "-"}<br />
-            <strong>Наименование:</strong> ${item.name || "-"}<br />
-            <strong>Цена:</strong> ${item.price || "-"}
-          </div>`;
-        }).join('');
-      } else {
-        console.log("No matches found for:", data);
-        resultDiv.textContent = "Ничего не найдено.";
-      }
-    });
-  </script>
+  <script src="/web/script.js"></script>
 </body>
 </html>

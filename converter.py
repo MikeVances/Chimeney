@@ -40,6 +40,84 @@ df = df.rename(columns={
 # Преобразование и сохранение
 data = df.to_dict(orient='records')
 
+import re
+
+def replace_cyrillic_e_in_technical(name):
+    # Заменяет кириллические е/Е на латинские в частях артикулов вида 6е/6Е (например AGVF370-6Е)
+    return re.sub(r'6[еЕ](?=[\W_]|$)', lambda m: '6E' if m.group(0)[-1].isupper() else '6e', name)
+
+for item in data:
+    if 'name' in item and isinstance(item['name'], str):
+        item['name'] = replace_cyrillic_e_in_technical(item['name'])
+    if 'price' in item and isinstance(item['price'], str):
+        item['price'] = item['price'].replace('\u00A0', '').replace(' ', '')
+
+# Парсинг параметров из поля name
+for item in data:
+    if 'name' in item and isinstance(item['name'], str):
+        name_lower = item['name'].lower()
+
+        # type
+        type_match = re.search(r'\b(vbv|vba|vbr|vbp)\b', name_lower)
+        if type_match:
+            item['type'] = type_match.group(1).upper()
+
+        # diameter - число из 3 цифр
+        diameter_match = re.search(r'\b(\d{3})\b', item['name'])
+        if diameter_match:
+            item['diameter'] = diameter_match.group(1)
+
+        # power
+        if 'agvf370' in name_lower:
+            item['power'] = 'AGVF370'
+        elif 'agvf750' in name_lower:
+            item['power'] = 'AGVF750'
+
+        # phase
+        if '6d' in name_lower:
+            item['phase'] = '3'
+        elif '6e' in name_lower:
+            item['phase'] = '1'
+
+        # valve
+        if 'поворотный' in name_lower:
+            item['valve'] = 'поворотный'
+        elif 'гравитационный' in name_lower:
+            item['valve'] = 'гравитационный'
+        elif 'двустворчатый' in name_lower:
+            item['valve'] = 'двустворчатый'
+        elif 'без' in name_lower:
+            item['valve'] = 'без'
+
+        # position
+        if 'верх' in name_lower:
+            item['position'] = 'верх'
+        elif 'низ' in name_lower:
+            item['position'] = 'низ'
+        elif 'внутр' in name_lower:
+            item['position'] = 'внутр'
+        elif 'внешн' in name_lower:
+            item['position'] = 'внешн'
+
+        # category
+        if 'секция' in name_lower:
+            item['category'] = 'секция'
+        elif 'автомат' in name_lower:
+            item['category'] = 'автомат'
+        elif 'мембрана' in name_lower:
+            item['category'] = 'мембрана'
+        elif 'лента' in name_lower:
+            item['category'] = 'удлинение'
+        elif 'зонт' in name_lower:
+            item['category'] = 'зонт'
+        elif 'раструб' in name_lower:
+            item['category'] = 'раструб'
+        elif 'каплеуловливатель' in name_lower:
+            item['category'] = 'каплеулавливатель'
+        elif 'корона' in name_lower:
+            item['category'] = 'корона'
+        elif 'привод' in name_lower or 'электропривод' in name_lower:
+            item['category'] = 'привод'
 
 import re
 
