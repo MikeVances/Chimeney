@@ -54,8 +54,18 @@
 
   function toggleValveFields(){
     const k = fldKlapan.value;
-    colRasp.classList.toggle('hidden', k !== 'поворотный');
-    colGrav.classList.toggle('hidden', k !== 'гравитационный');
+    const isPov = (k === 'поворотный');
+    const isGrav = (k === 'гравитационный');
+
+    // Поворотный → требуем и показываем «расположение»
+    colRasp.classList.toggle('hidden', !isPov);
+    fldRasp.required = isPov;
+    if(!isPov){ fldRasp.value = ''; }
+
+    // Гравитационный → требуем и показываем «тип гравитационного»
+    colGrav.classList.toggle('hidden', !isGrav);
+    fldGrav.required = isGrav;
+    if(!isGrav){ fldGrav.value = ''; }
   }
 
   function toggleKoronaVisibility(){
@@ -104,13 +114,9 @@
       colGrav.classList.add('hidden');
       fldGrav.required = false; fldGrav.value = '';
     } else {
-      // вернуть опции в исходное состояние
-      Array.from(fldKlapan.options).forEach(opt => { if(opt.value === 'гравитационный') opt.disabled = false; });
-      colRasp.classList.add('hidden');
-      fldRasp.required = false;
+      // вернуть опции в исходное состояние; требования к полям выставит toggleValveFields()
+      Array.from(fldKlapan.options).forEach(opt => { opt.disabled = false; });
       fldRasp.disabled = false;
-      colGrav.classList.remove('hidden');
-      fldGrav.required = true;
       fldGrav.disabled = false;
     }
 
