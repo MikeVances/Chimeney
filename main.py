@@ -347,6 +347,16 @@ def api_select():
             payload["raspolozhenie"] = "niz"
             messages.append("Для VBR расположение клапана всегда 'низ'")
 
+    # 2.1c) Для VBP доступен только поворотный клапан, расположение всегда НИЗ
+    if tip == "VBP":
+        if klapan != "pov":
+            payload["tip_klapana"] = "pov"
+            klapan = "pov"
+            messages.append("Для VBP доступен только поворотный клапан")
+        if _norm(payload.get("raspolozhenie")) != "niz":
+            payload["raspolozhenie"] = "niz"
+            messages.append("Для VBP расположение клапана всегда 'низ'")
+
     # 2.2) Для моторных типов (VBV/VBA/VBR) мощность определяется диаметром
     required_power = {"560": "370", "710": "370", "800": "750"}.get(diam)
 
@@ -354,8 +364,8 @@ def api_select():
     if not tip or not diam or not klapan:
         return jsonify({"results": [], "message": "Не хватает обязательных параметров"})
 
-    # Доп.валидация: для VBV/VBP/VBR/VBA при pov/grav обязателен тип мотора; мощность можем выставить по диаметру
-    needs_motor = tip in ("VBV", "VBP", "VBR", "VBA") and klapan in ("pov", "grav")
+    # Доп.валидация: для VBV/VBA/VBR при pov/grav обязателен тип мотора; мощность можем выставить по диаметру
+    needs_motor = (tip in ("VBV", "VBA", "VBR")) and (klapan in ("pov", "grav"))
     if needs_motor:
         if not payload.get("tip_motora"):
             return jsonify({"results": [], "message": "Не хватает параметров: тип мотора обязателен для выбранной конфигурации"})
@@ -379,6 +389,31 @@ def api_select():
         art = code_mapping[key]
         base = by_art.get(art, {"artikul": art, "name": f"Комплект шахты ({key})"})
         result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
+
+    # Fallback для VBP: подбираем базовую секцию без мотора по шаблону pov_niz
+    tip_upper = str(tip).upper()
+    if not result and tip_upper == "VBP":
+        # 1) пробуем по ключу с масками в _code_mapping (если он задан как VBP_<diam>_*_*_pov_niz)
+        wildcard_key = f"VBP_{diam}_*_*_pov_niz"
+        art = code_mapping.get(wildcard_key)
+        if art:
+            base = by_art.get(art, {"artikul": art, "name": f"Комплект шахты VBP-{diam} (поворотный, низ)"})
+            result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
+        else:
+            # 2) ищем по названию в каталоге
+            it = _find(lambda x: _name_has(x, "vbp", diam, "поворот", "низ"))
+            if it:
+                art = str(it.get("artikul") or it.get("article"))
+                result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
+            else:
+                # 3) последний резерв: жёсткая мапа по диаметру, если каталог/маппинг неполные
+                vbp_by_diam = {"560": "89142", "710": "89143", "800": "89153"}
+                art = vbp_by_diam.get(diam)
+                if art:
+                    base = by_art.get(art, {"artikul": art, "name": f"Секция камина VBP-{diam} (2м, поворотный клапан, низ)"})
+                    result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
+                else:
+                    messages.append(f"Для VBP-{diam} нет предопределённого артикула (проверьте каталог)")
 
     # 2.3) Верхняя часть у приточных — только зонт; для VBR зонт обязателен
     tip_upper = str(tip).upper()

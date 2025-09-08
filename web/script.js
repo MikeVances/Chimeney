@@ -113,6 +113,15 @@
       fldRasp.required = true;
       colGrav.classList.add('hidden');
       fldGrav.required = false; fldGrav.value = '';
+    } else if(t === 'приточная пассивная'){
+      // В каталоге нет двустворчатого для VBP — запрещаем и при необходимости переключаем на поворотный
+      Array.from(fldKlapan.options).forEach(opt => {
+        if(opt.value === 'двустворчатый') opt.disabled = true; else opt.disabled = false;
+      });
+      if(fldKlapan.value === 'двустворчатый'){
+        fldKlapan.value = 'поворотный';
+      }
+      // Остальные требования к полям (расположение/тип грав.) выставит toggleValveFields()
     } else {
       // вернуть опции в исходное состояние; требования к полям выставит toggleValveFields()
       Array.from(fldKlapan.options).forEach(opt => { opt.disabled = false; });
