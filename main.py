@@ -368,7 +368,7 @@ def api_select():
     needs_motor = (tip in ("VBV", "VBA", "VBR")) and (klapan in ("pov", "grav"))
     if needs_motor:
         if not payload.get("tip_motora"):
-            return jsonify({"results": [], "message": "Не хватает параметров: тип мотора обязателен для выбранной конфигурации"})
+            return jsonify({"results": [], "message": "Не хватает параметров: укажите тип мотора (6E/6D)"})
         # Приведём мощность к допустимой по диаметру, если нужно
         if required_power:
             cur_power = str(payload.get("moshchnost", "")).strip()
@@ -380,15 +380,37 @@ def api_select():
                 messages.append(f"Мощность скорректирована до {required_power} Вт для D{diam}")
 
     key = build_code_key(payload)
+    # Диагностика причин пустого ключа (помогает понять, что именно не заполнено)
+    if not key:
+        t_upper = str(payload.get("tip", "")).upper()
+        k = payload.get("tip_klapana")
+        if k == "pov":
+            if not payload.get("raspolozhenie"):
+                messages.append("Для поворотного клапана необходимо выбрать расположение: верх/низ")
+            if t_upper in ("VBV", "VBA", "VBR"):
+                if not payload.get("tip_motora"):
+                    messages.append("Для выбранного типа требуется указать тип мотора (6E/6D)")
+                if not str(payload.get("moshchnost", "")).strip():
+                    messages.append("Для выбранного типа требуется указать мощность (370/750)")
+        elif k == "grav":
+            if not payload.get("grav_variant"):
+                messages.append("Для гравитационного клапана необходимо выбрать вариант: внутренний/внешний")
+            if t_upper in ("VBV", "VBA", "VBR"):
+                if not payload.get("tip_motora"):
+                    messages.append("Для выбранного типа требуется указать тип мотора (6E/6D)")
+                if not str(payload.get("moshchnost", "")).strip():
+                    messages.append("Для выбранного типа требуется указать мощность (370/750)")
+        elif k == "dvustv":
+            messages.append("Двустворчатый клапан поддерживается не для всех типов — проверьте выбранный тип шахты")
 
     result: Dict[str, Dict[str, Any]] = {}
-    # messages: List[str] = []  # removed this line as messages declared earlier
-
     # 1) Комплект шахты (по _code_mapping)
     if key and code_mapping.get(key):
         art = code_mapping[key]
         base = by_art.get(art, {"artikul": art, "name": f"Комплект шахты ({key})"})
         result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
+        if app.debug:
+            messages.append(f"База подобрана по _code_mapping: {key} → {art}")
 
     # Fallback для VBP: подбираем базовую секцию без мотора по шаблону pov_niz
     tip_upper = str(tip).upper()
@@ -399,12 +421,16 @@ def api_select():
         if art:
             base = by_art.get(art, {"artikul": art, "name": f"Комплект шахты VBP-{diam} (поворотный, низ)"})
             result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
+            if app.debug:
+                messages.append(f"База VBP подобрана по wildcard-ключу: {wildcard_key} → {art}")
         else:
             # 2) ищем по названию в каталоге
             it = _find(lambda x: _name_has(x, "vbp", diam, "поворот", "низ"))
             if it:
                 art = str(it.get("artikul") or it.get("article"))
                 result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
+                if app.debug:
+                    messages.append(f"База VBP найдена по названию: {it.get('name','')} → {art}")
             else:
                 # 3) последний резерв: жёсткая мапа по диаметру, если каталог/маппинг неполные
                 vbp_by_diam = {"560": "89142", "710": "89143", "800": "89153"}
@@ -412,9 +438,15 @@ def api_select():
                 if art:
                     base = by_art.get(art, {"artikul": art, "name": f"Секция камина VBP-{diam} (2м, поворотный клапан, низ)"})
                     result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
+                    if app.debug:
+                        messages.append(f"База VBP подобрана по предопределённой мапе: D{diam} → {art}")
                 else:
                     messages.append(f"Для VBP-{diam} нет предопределённого артикула (проверьте каталог)")
 
+    # Если базовая секция так и не подобрана — дадим явное сообщение
+    if not result:
+        klapan_label = {"pov": "поворотный", "grav": "гравитационный", "dvustv": "двустворчатый"}.get(klapan, klapan or "—")
+        messages.append(f"Варианта базовой секции для {tip}-{diam} ({klapan_label}) нет в каталоге/маппинге")
     # 2.3) Верхняя часть у приточных — только зонт; для VBR зонт обязателен
     tip_upper = str(tip).upper()
     top = payload.get("verhnyaya_chast")
@@ -422,8 +454,13 @@ def api_select():
         if _norm(top) == "rastrub":
             messages.append("Для приточных шахт верхняя часть 'раструб' недоступна — установлен 'зонт'")
             top = "zont"
+        elif not _norm(top):
+            top = "zont"
+            messages.append("Для приточных шахт верхняя часть по умолчанию — 'зонт'")
     elif tip_upper == "VBR":
         # всегда зонт
+        if _norm(top) != "zont":
+            messages.append("Для VBR верхняя часть всегда 'зонт'")
         top = "zont"
 
     # 3) Верхняя часть: зонт/раструб
@@ -528,7 +565,8 @@ def api_select():
             messages.append("Не забудьте добавить привод! (в каталоге приводы не найдены)")
     out = list(result.values())
     if not out:
-        return jsonify({"results": [], "message": "Ничего не найдено" if not messages else "; ".join(messages)})
+        base_reason = "; ".join(messages) if messages else "Основание подбора не найдено в каталоге/маппинге"
+        return jsonify({"results": [], "message": f"Ничего не найдено. {base_reason}"})
     if messages:
         return jsonify({"results": out, "message": "; ".join(messages)})
     return jsonify({"results": out})
