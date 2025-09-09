@@ -590,6 +590,11 @@ def static_files(filename):
     return send_from_directory("web", filename)
 
 
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory("web", "agroventlabel.png", mimetype='image/png')
+
+
 if __name__ == "__main__":
     # PROD: запускать через gunicorn/uwsgi; debug только локально
     app.run(host="0.0.0.0", port=5001, debug=True)

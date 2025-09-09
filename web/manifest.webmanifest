@@ -1,0 +1,29 @@
+{
+    "name": "Chimeney — калькулятор шахт",
+    "short_name": "Chimeney",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#0f6fff",
+    "icons": [
+      {
+        "src": "agroventlabel.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "agroventlabel.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "agroventlabel.png",
+        "sizes": "1024x1024",
+        "type": "image/png",
+        "purpose": "any maskable"
+      }
+    ]
+  }
