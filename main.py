@@ -172,8 +172,13 @@ def pick_top_part(kind: str, diam: str):
             return it
         return _find(lambda x: _name_has(x, "зонт"))
     if kind == "rastrub":
-        # часто в каталоге лежит в "прочее" — ищем по имени
-        return _find(lambda x: _name_has(x, "раструб"))
+        # Раструб привязан к диаметру: сначала ищем по атрибутам, затем по имени
+        # 1) по category/diameter, если в каталоге заполнены поля
+        it = _find(lambda x: _norm(x.get("category")) == "раструб" and str(x.get("diameter", "")).strip() == diam)
+        if it:
+            return it
+        # 2) по имени + диаметр (часто лежит в "прочее")
+        return _find(lambda x: _name_has(x, "раструб") and (diam in _norm(x.get("name"))))
     return None
 
 
@@ -265,7 +270,7 @@ def pick_korona():
 
 
 # New helper for listing available drives
-def list_available_drives(max_items: int = 8):
+def list_available_drives(max_items: int = 50):
     """Возвращает список приводов для подсказки пользователю.
     1) Сначала берём артикулы из белого списка (если есть в каталоге);
     2) Затем добавляем найденные по строгому фильтру ("электропривод"|категория "привод"),
@@ -469,6 +474,9 @@ def api_select():
         if it:
             art = str(it.get("artikul") or it.get("article"))
             result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
+        else:
+            if _norm(top) == "rastrub":
+                messages.append(f"Раструб для диаметра D{diam} не найден в каталоге")
 
     # 3.1) Для VBR всегда добавляем секцию подмешивания
     if tip_upper == "VBR":
