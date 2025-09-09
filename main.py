@@ -544,6 +544,7 @@ def api_select():
                 art = str(it.get("artikul") or it.get("article"))
                 result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
 
+
     # 8) Корона (распределитель воздуха)
     tip_upper = str(tip).upper()
     if klapan == "dvustv":
@@ -561,6 +562,30 @@ def api_select():
             if it:
                 art = str(it.get("artikul") or it.get("article"))
                 result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
+
+    # 9) Монтажный комплект (опционально): только для VBV/VBA/VBP и только при поворотном/гравитационном клапане
+    if bool(payload.get("montazhny_komplekt")):
+        tip_upper = str(tip).upper()
+        if tip_upper in ("VBV", "VBA", "VBP"):
+            it = None
+            if klapan == "pov":
+                # предпочтительно по артикулу
+                it = by_art.get("89151") or _find(lambda x: _name_has(x, "монтажный", "комплект") and _name_has(x, "vb") and _name_has(x, "поворот"))
+            elif klapan == "grav":
+                it = by_art.get("89152") or _find(lambda x: _name_has(x, "монтажный", "комплект") and _name_has(x, "vb") and _name_has(x, "гравита"))
+            else:
+                # для двустворчатого и прочих — не применяем
+                it = None
+
+            if it:
+                art = str(it.get("artikul") or it.get("article"))
+                result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
+            else:
+                messages.append("Монтажный комплект для выбранного типа клапана не найден в каталоге")
+        else:
+            # Для VBR не применяем монтажный комплект VB
+            if bool(payload.get("montazhny_komplekt")):
+                messages.append("Монтажный комплект не применяется для VBR и будет проигнорирован")
 
     # Напоминание про привод: для поворотного/двустворчатого клапана (все кроме гравитационного)
     if klapan in ("pov", "dvustv"):

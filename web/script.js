@@ -16,6 +16,7 @@
   const cbLenta = document.getElementById('герм_лента');
   const cbAuto = document.getElementById('автомат');
   const cbKap = document.getElementById('каплеулавливатель');
+  const cbMount = document.getElementById('монтажный_комплект');
   const fldExt = document.getElementById('удлинение');
   const cbKorona = document.getElementById('корона');
   const colKorona = document.getElementById('col-корона');
@@ -75,6 +76,20 @@
     const show = (t === 'приточная пассивная' || t === 'приточная активная') && (k === 'поворотный' || k === 'гравитационный');
     colKorona.classList.toggle('hidden', !show);
     if(!show && cbKorona){ cbKorona.checked = false; }
+  }
+
+  function toggleMountVisibility(){
+    if(!cbMount) return;
+    const t = fldType.value;               // человекочитаемый тип
+    const k = fldKlapan.value;             // человекочитаемый клапан
+    // Показать только для VB-вариантов (вытяжная/VBV, приточная активная/VBA, приточная пассивная/VBP)
+    // и только когда клапан поворотный или гравитационный
+    const show = (t === 'вытяжная' || t === 'приточная активная' || t === 'приточная пассивная') &&
+                 (k === 'поворотный' || k === 'гравитационный');
+    // сам чекбокс у нас в вёрстке без отдельной колонки; отключим по месту
+    const wrapper = cbMount.closest('div');
+    if(wrapper){ wrapper.classList.toggle('hidden', !show); }
+    if(!show){ cbMount.checked = false; }
   }
 
   function toggleMotorFields(){
@@ -139,6 +154,7 @@
       Array.from(fldTop.options).forEach(opt => { opt.disabled = false; });
       fldTop.disabled = false;
     }
+    toggleMountVisibility();
   }
 
   // --- New function: enforcePowerByDiamAndType ---
@@ -166,10 +182,10 @@
     }
   }
 
-  fldKlapan.addEventListener('change', ()=>{ enforceValveConstraints(); toggleValveFields(); toggleMotorFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); });
-  fldType.addEventListener('change', ()=>{ enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); });
+  fldKlapan.addEventListener('change', ()=>{ enforceValveConstraints(); toggleValveFields(); toggleMotorFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
+  fldType.addEventListener('change', ()=>{ enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
   fldDiam.addEventListener('change', ()=>{ enforcePowerByDiamAndType(); });
-  enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType();
+  enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility();
 
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
@@ -190,6 +206,7 @@
       },
       avtomat: cbAuto.checked,
       kapleulavlivatel: cbKap.checked,
+      montazhny_komplekt: cbMount ? cbMount.checked : false,
       korona: (cbKorona ? ( (fldType.value === 'приточная пассивная' || fldType.value === 'приточная активная') && fldKlapan.value !== 'двустворчатый' ? cbKorona.checked : false ) : false),
       udlinenie_m: Number(fldExt.value || 0)
     };
