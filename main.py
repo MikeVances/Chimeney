@@ -563,10 +563,10 @@ def api_select():
                 art = str(it.get("artikul") or it.get("article"))
                 result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
 
-    # 9) Монтажный комплект (опционально): только для VBV/VBA/VBP и только при поворотном/гравитационном клапане
+    # 9) Монтажный комплект (опционально): только для VBV/VBA/VBP/VBR и только при поворотном/гравитационном клапане
     if bool(payload.get("montazhny_komplekt")):
         tip_upper = str(tip).upper()
-        if tip_upper in ("VBV", "VBA", "VBP"):
+        if tip_upper in ("VBV", "VBA", "VBP", "VBR"):
             it = None
             if klapan == "pov":
                 # предпочтительно по артикулу
@@ -582,10 +582,6 @@ def api_select():
                 result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
             else:
                 messages.append("Монтажный комплект для выбранного типа клапана не найден в каталоге")
-        else:
-            # Для VBR не применяем монтажный комплект VB
-            if bool(payload.get("montazhny_komplekt")):
-                messages.append("Монтажный комплект не применяется для VBR и будет проигнорирован")
 
     # Напоминание про привод: для поворотного/двустворчатого клапана (все кроме гравитационного)
     if klapan in ("pov", "dvustv"):
