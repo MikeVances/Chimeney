@@ -8,3 +8,43 @@ venv/
 .vscode/
 # Git Scripts
 GitScripts/
+
+# Office temporary files
+~$*
+*.tmp
+
+# Excel exports and backups
+*.xls?
+*.xlsx~
+*.bak
+*.old
+
+# Logs
+logs/
+*.log
+
+# Environment variables and secrets
+.env
+.env.*
+*.secret
+*.key
+
+# Compiled / cache
+*.egg-info/
+*.pyo
+*.pyd
+*.so
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Build and distribution
+build/
+dist/
+
+# OS specific
+Thumbs.db
+
+# Local data exports
+output/
+RawData/~$*
