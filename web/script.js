@@ -2,6 +2,31 @@
   const form = document.getElementById('search-form');
   const resultDiv = document.getElementById('result');
 
+  // Храним последний payload для экспорта
+  let lastPayload = null;
+
+  // Кнопка для выгрузки Excel. Если её нет в вёрстке — создадим динамически.
+  let btnDownload = document.getElementById('download-xlsx');
+  function ensureDownloadButton(){
+    if (!btnDownload) {
+      btnDownload = document.createElement('button');
+      btnDownload.type = 'button';
+      btnDownload.id = 'download-xlsx';
+      btnDownload.textContent = 'Скачать Excel (КП)';
+      btnDownload.disabled = true;
+      // попробуем вставить в конец формы
+      if (form) {
+        const wrapper = document.createElement('div');
+        wrapper.style.marginTop = '8px';
+        wrapper.appendChild(btnDownload);
+        form.appendChild(wrapper);
+      } else {
+        document.body.appendChild(btnDownload);
+      }
+    }
+  }
+  ensureDownloadButton();
+
   const fldType = document.getElementById('тип');
   const fldDiam = document.getElementById('диаметр');
   const fldKlapan = document.getElementById('тип_клапана');
@@ -182,6 +207,44 @@
     }
   }
 
+  async function exportToExcel(payload){
+    try {
+      const res = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || lastPayload || {})
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        alert('Ошибка экспорта: ' + txt);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const fileName = 'KP_' + new Date().toISOString().replaceAll(':','-').slice(0,19) + '.xlsx';
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Ошибка экспорта: ' + (e?.message || e));
+    }
+  }
+
+  function enableDownloadIfResults(results, payload){
+    if (Array.isArray(results) && results.length > 0) {
+      btnDownload.disabled = false;
+      lastPayload = payload || lastPayload;
+      btnDownload.onclick = () => exportToExcel(payload);
+    } else {
+      btnDownload.disabled = true;
+      btnDownload.onclick = null;
+    }
+  }
+
   fldKlapan.addEventListener('change', ()=>{ enforceValveConstraints(); toggleValveFields(); toggleMotorFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
   fldType.addEventListener('change', ()=>{ enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
   fldDiam.addEventListener('change', ()=>{ enforcePowerByDiamAndType(); });
@@ -210,6 +273,7 @@
       korona: (cbKorona ? ( (fldType.value === 'приточная пассивная' || fldType.value === 'приточная активная') && fldKlapan.value !== 'двустворчатый' ? cbKorona.checked : false ) : false),
       udlinenie_m: Number(fldExt.value || 0)
     };
+    lastPayload = payload;
 
     try {
       const resp = await fetch('/api/select', {
@@ -227,8 +291,10 @@
           return `<div class="result-item"><strong>Артикул:</strong> ${art}<br><strong>Наименование:</strong> ${name}<br><strong>Количество:</strong> ${qty}</div>`;
         }).join('');
         resultDiv.innerHTML = data.message ? html + `<div class="result-item"><br><em>${data.message}</em></div>` : html;
+        enableDownloadIfResults(data.results, payload);
       } else {
         resultDiv.textContent = data.message || 'Ничего не найдено';
+        enableDownloadIfResults([], payload);
       }
     } catch(err){
       console.error(err);
@@ -242,4 +308,6 @@
       window.location.reload();
     });
   }
+  // На старте — кнопка выгрузки не активна
+  if (btnDownload) { btnDownload.disabled = true; }
 })();

@@ -2,11 +2,14 @@
 # Flask-сервер для подбора вентиляционной шахты
 # Контракт: POST /api/select -> {results: [{article, name, quantity}]}
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 import json
 import os
 import re
 from typing import Dict, Any, List
+
+from io import BytesIO
+from openpyxl import Workbook
 
 app = Flask(__name__)
 
@@ -325,9 +328,25 @@ def pick_vbr_podmesh(diam: str):
     return _find(lambda x: _name_has(x, "подмешив") and (diam in _norm(x.get("name"))))
 
 
-@app.route("/api/select", methods=["POST"])
-def api_select():
-    payload = request.get_json(silent=True) or {}
+# --- New helpers and refactored logic for export/select ---
+
+def _price_of(art: str) -> float:
+    it = by_art.get(str(art).strip())
+    if not it:
+        return 0.0
+    for key in ("price", "цена", "cost"):
+        v = it.get(key)
+        if v is None:
+            continue
+        try:
+            return float(str(v).replace(' ', '').replace(',', '.'))
+        except Exception:
+            continue
+    return 0.0
+
+
+def _select_components(payload_in: Dict[str, Any]):
+    payload = dict(payload_in or {})
     messages: List[str] = []
 
     tip = payload.get("tip")
@@ -335,24 +354,20 @@ def api_select():
     klapan = payload.get("tip_klapana")
 
     # Бэкенд-ограничения: приведение параметров к допустимым
-    # 2.1) Для VBA клапан всегда поворотный
     if tip == "VBA" and klapan != "pov":
         payload["tip_klapana"] = "pov"
         klapan = "pov"
         messages.append("Для VBA выбран поворотный клапан (гравитационного не бывает)")
 
-    # 2.1b) Для VBR клапан всегда поворотный и расположение всегда НИЗ
     if tip == "VBR":
         if klapan != "pov":
             payload["tip_klapana"] = "pov"
             klapan = "pov"
             messages.append("Для VBR выбран поворотный клапан (гравитационного/двустворчатого не бывает)")
-        # расположение только низ
         if _norm(payload.get("raspolozhenie")) != "niz":
             payload["raspolozhenie"] = "niz"
             messages.append("Для VBR расположение клапана всегда 'низ'")
 
-    # 2.1c) Для VBP доступен только поворотный клапан, расположение всегда НИЗ
     if tip == "VBP":
         if klapan != "pov":
             payload["tip_klapana"] = "pov"
@@ -362,19 +377,15 @@ def api_select():
             payload["raspolozhenie"] = "niz"
             messages.append("Для VBP расположение клапана всегда 'низ'")
 
-    # 2.2) Для моторных типов (VBV/VBA/VBR) мощность определяется диаметром
     required_power = {"560": "370", "710": "370", "800": "750"}.get(diam)
 
-    # валидация минимальных полей
     if not tip or not diam or not klapan:
-        return jsonify({"results": [], "message": "Не хватает обязательных параметров"})
+        return [], ["Не хватает обязательных параметров"]
 
-    # Доп.валидация: для VBV/VBA/VBR при pov/grav обязателен тип мотора; мощность можем выставить по диаметру
     needs_motor = (tip in ("VBV", "VBA", "VBR")) and (klapan in ("pov", "grav"))
     if needs_motor:
         if not payload.get("tip_motora"):
-            return jsonify({"results": [], "message": "Не хватает параметров: укажите тип мотора (6E/6D)"})
-        # Приведём мощность к допустимой по диаметру, если нужно
+            return [], ["Не хватает параметров: укажите тип мотора (6E/6D)"]
         if required_power:
             cur_power = str(payload.get("moshchnost", "")).strip()
             if not cur_power:
@@ -385,7 +396,6 @@ def api_select():
                 messages.append(f"Мощность скорректирована до {required_power} Вт для D{diam}")
 
     key = build_code_key(payload)
-    # Диагностика причин пустого ключа (помогает понять, что именно не заполнено)
     if not key:
         t_upper = str(payload.get("tip", "")).upper()
         k = payload.get("tip_klapana")
@@ -409,51 +419,34 @@ def api_select():
             messages.append("Двустворчатый клапан поддерживается не для всех типов — проверьте выбранный тип шахты")
 
     result: Dict[str, Dict[str, Any]] = {}
-    # 1) Комплект шахты (по _code_mapping)
     if key and code_mapping.get(key):
         art = code_mapping[key]
         base = by_art.get(art, {"artikul": art, "name": f"Комплект шахты ({key})"})
         result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
-        if app.debug:
-            messages.append(f"База подобрана по _code_mapping: {key} → {art}")
 
-    # Fallback для VBP: подбираем базовую секцию без мотора по шаблону pov_niz
     tip_upper = str(tip).upper()
     if not result and tip_upper == "VBP":
-        # 1) пробуем по ключу с масками в _code_mapping (если он задан как VBP_<diam>_*_*_pov_niz)
         wildcard_key = f"VBP_{diam}_*_*_pov_niz"
         art = code_mapping.get(wildcard_key)
         if art:
             base = by_art.get(art, {"artikul": art, "name": f"Комплект шахты VBP-{diam} (поворотный, низ)"})
             result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
-            if app.debug:
-                messages.append(f"База VBP подобрана по wildcard-ключу: {wildcard_key} → {art}")
         else:
-            # 2) ищем по названию в каталоге
             it = _find(lambda x: _name_has(x, "vbp", diam, "поворот", "низ"))
             if it:
                 art = str(it.get("artikul") or it.get("article"))
                 result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
-                if app.debug:
-                    messages.append(f"База VBP найдена по названию: {it.get('name','')} → {art}")
             else:
-                # 3) последний резерв: жёсткая мапа по диаметру, если каталог/маппинг неполные
                 vbp_by_diam = {"560": "89142", "710": "89143", "800": "89153"}
                 art = vbp_by_diam.get(diam)
                 if art:
                     base = by_art.get(art, {"artikul": art, "name": f"Секция камина VBP-{diam} (2м, поворотный клапан, низ)"})
                     result[art] = {"article": art, "name": base.get("name", ""), "quantity": 1}
-                    if app.debug:
-                        messages.append(f"База VBP подобрана по предопределённой мапе: D{diam} → {art}")
-                else:
-                    messages.append(f"Для VBP-{diam} нет предопределённого артикула (проверьте каталог)")
 
-    # Если базовая секция так и не подобрана — дадим явное сообщение
     if not result:
         klapan_label = {"pov": "поворотный", "grav": "гравитационный", "dvustv": "двустворчатый"}.get(klapan, klapan or "—")
         messages.append(f"Варианта базовой секции для {tip}-{diam} ({klapan_label}) нет в каталоге/маппинге")
-    # 2.3) Верхняя часть у приточных — только зонт; для VBR зонт обязателен
-    tip_upper = str(tip).upper()
+
     top = payload.get("verhnyaya_chast")
     if tip_upper in ("VBA", "VBP"):
         if _norm(top) == "rastrub":
@@ -463,12 +456,10 @@ def api_select():
             top = "zont"
             messages.append("Для приточных шахт верхняя часть по умолчанию — 'зонт'")
     elif tip_upper == "VBR":
-        # всегда зонт
         if _norm(top) != "zont":
             messages.append("Для VBR верхняя часть всегда 'зонт'")
         top = "zont"
 
-    # 3) Верхняя часть: зонт/раструб
     if top:
         it = pick_top_part(top, diam)
         if it:
@@ -478,7 +469,6 @@ def api_select():
             if _norm(top) == "rastrub":
                 messages.append(f"Раструб для диаметра D{diam} не найден в каталоге")
 
-    # 3.1) Для VBR всегда добавляем секцию подмешивания
     if tip_upper == "VBR":
         it = pick_vbr_podmesh(diam)
         if it:
@@ -487,7 +477,6 @@ def api_select():
         else:
             messages.append(f"Секция подмешивания для D{diam} не найдена в каталоге")
 
-    # 4) Герметизация (мембрана/лента)
     g = payload.get("germetizatsiya") or {}
     if bool(g.get("membrana")):
         it = pick_membrana_by_diam(diam)
@@ -504,7 +493,7 @@ def api_select():
         else:
             messages.append("Лента битумная не найдена в каталоге")
 
-    # 5) Автомат защиты (если запрошен)
+    needs_motor = (tip in ("VBV", "VBA", "VBR")) and (klapan in ("pov", "grav"))
     if bool(payload.get("avtomat")) and needs_motor:
         motor = _norm(payload.get("tip_motora"))
         power = str(payload.get("moshchnost", "")).strip()
@@ -525,7 +514,6 @@ def api_select():
             else:
                 messages.append(f"Автомат защиты {target} A не найден в каталоге")
 
-    # 6) Удлинение (в метрах) — секции VB 1 м по диаметру
     meters = int(payload.get("udlinenie_m") or 0)
     if meters:
         it, qty = pick_udlinenie_sections(diam, meters)
@@ -533,9 +521,7 @@ def api_select():
             art = str(it.get("artikul") or it.get("article"))
             result[art] = {"article": art, "name": it.get("name", ""), "quantity": qty}
 
-    # 7) Каплеулавливатель (опционально)
     if bool(payload.get("kapleulavlivatel")):
-        tip_upper = str(tip).upper()
         if tip_upper in ("VBA", "VBP", "VBR"):
             messages.append("Каплеулавливатель не применяется для приточных шахт и будет проигнорирован")
         else:
@@ -544,61 +530,250 @@ def api_select():
                 art = str(it.get("artikul") or it.get("article"))
                 result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
 
+    if payload.get("korona") and (payload.get("tip_klapana") != "dvustv"):
+        it = pick_korona()
+        if it:
+            art = str(it.get("artikul") or it.get("article"))
+            result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
 
-    # 8) Корона (распределитель воздуха)
-    tip_upper = str(tip).upper()
-    if klapan == "dvustv":
-        # если двустворчатый — корона не ставится; если пользователь просил — сообщаем
-        if payload.get("korona"):
-            messages.append("Опция 'Корона' проигнорирована: для двустворчатого клапана не применяется")
-    else:
-        if tip_upper == "VBR":
-            it = pick_korona()
-            if it:
-                art = str(it.get("artikul") or it.get("article"))
-                result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
-        elif tip_upper in ("VBA", "VBP") and bool(payload.get("korona")):
-            it = pick_korona()
-            if it:
-                art = str(it.get("artikul") or it.get("article"))
-                result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
-
-    # 9) Монтажный комплект (опционально): только для VBV/VBA/VBP/VBR и только при поворотном/гравитационном клапане
     if bool(payload.get("montazhny_komplekt")):
-        tip_upper = str(tip).upper()
-        if tip_upper in ("VBV", "VBA", "VBP", "VBR"):
-            it = None
-            if klapan == "pov":
-                # предпочтительно по артикулу
-                it = by_art.get("89151") or _find(lambda x: _name_has(x, "монтажный", "комплект") and _name_has(x, "vb") and _name_has(x, "поворот"))
-            elif klapan == "grav":
-                it = by_art.get("89152") or _find(lambda x: _name_has(x, "монтажный", "комплект") and _name_has(x, "vb") and _name_has(x, "гравита"))
-            else:
-                # для двустворчатого и прочих — не применяем
-                it = None
+        it = None
+        if klapan == "pov":
+            it = by_art.get("89151") or _find(lambda x: _name_has(x, "монтажный", "комплект") and _name_has(x, "vb") and _name_has(x, "поворот"))
+        elif klapan == "grav":
+            it = by_art.get("89152") or _find(lambda x: _name_has(x, "монтажный", "комплект") and _name_has(x, "vb") and _name_has(x, "гравита"))
+        if it:
+            art = str(it.get("artikul") or it.get("article"))
+            result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
+        else:
+            messages.append("Монтажный комплект для выбранного типа клапана не найден в каталоге")
 
-            if it:
-                art = str(it.get("artikul") or it.get("article"))
-                result[art] = {"article": art, "name": it.get("name", ""), "quantity": 1}
-            else:
-                messages.append("Монтажный комплект для выбранного типа клапана не найден в каталоге")
-
-    # Напоминание про привод: для поворотного/двустворчатого клапана (все кроме гравитационного)
     if klapan in ("pov", "dvustv"):
         drives = list_available_drives()
         if drives:
             lines = [f"• {str(d.get('artikul') or d.get('article'))} — {d.get('name','')}" for d in drives]
-            listing = "<br>".join(lines)
-            messages.append(f"Не забудьте добавить привод! Доступные приводы:<br>{listing}")
+            listing = "&lt;br&gt;".join(lines)
+            messages.append(f"Не забудьте добавить привод! Доступные приводы:&lt;br&gt;{listing}")
         else:
             messages.append("Не забудьте добавить привод! (в каталоге приводы не найдены)")
+
     out = list(result.values())
-    if not out:
+    return out, messages
+
+
+
+@app.route("/api/select", methods=["POST"])
+def api_select():
+    payload = request.get_json(silent=True) or {}
+    results, messages = _select_components(payload)
+    if not results:
         base_reason = "; ".join(messages) if messages else "Основание подбора не найдено в каталоге/маппинге"
         return jsonify({"results": [], "message": f"Ничего не найдено. {base_reason}"})
     if messages:
-        return jsonify({"results": out, "message": "; ".join(messages)})
-    return jsonify({"results": out})
+        return jsonify({"results": results, "message": "; ".join(messages)})
+    return jsonify({"results": results})
+
+
+# --- New export route ---
+@app.route("/api/export", methods=["POST"])
+def api_export():
+    payload = request.get_json(silent=True) or {}
+    results, messages = _select_components(payload)
+    if not results:
+        msg = "; ".join(messages) if messages else "Ничего не найдено"
+        return jsonify({"error": msg}), 400
+
+    # Поддержка опциональных параметров: group, qty_multiplier
+    group_title = str(payload.get("group") or "").strip()  # например: "Коридор"
+    qty_multiplier = int(payload.get("qty_multiplier") or 1)
+    if qty_multiplier < 1:
+        qty_multiplier = 1
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "КП"
+
+    # Заголовки по требуемой форме
+    headers = ["н/п", "Наименование", "Цена, руб. с НДС", "Кол-во, шт.", "Сумма, руб. с НДС"]
+    ws.append(headers)
+
+    # Стили заголовков
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    bold = Font(bold=True)
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    thin = Side(style="thin")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    header_fill = PatternFill("solid", fgColor="F2F2F2")
+
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.font = bold
+        cell.alignment = center
+        cell.border = border
+        cell.fill = header_fill
+
+    # Необязательная строка-группа (например, "Коридор")
+    row_idx = 2
+    if group_title:
+        ws.append([group_title, "", "", "", ""])
+        for col in range(1, len(headers) + 1):
+            ws.cell(row=row_idx, column=col).border = border
+            ws.cell(row=row_idx, column=col).font = bold
+            ws.cell(row=row_idx, column=1).alignment = left
+        row_idx += 1
+
+    # Данные
+    total = 0.0
+    counter = 1
+    for row in results:
+        name = row.get("name", "")
+        base_qty = float(row.get("quantity") or 0)
+        qty = base_qty * qty_multiplier
+        art = str(row.get("article") or "").strip()
+        # Цена
+        price = _price_of(art)
+        summa = price * qty
+        total += summa
+
+        ws.append([counter, name, price, qty, summa])
+        for col in range(1, len(headers) + 1):
+            ws.cell(row=row_idx, column=col).border = border
+            ws.cell(row=row_idx, column=2).alignment = left
+            if col in (1, 3, 4, 5):
+                ws.cell(row=row_idx, column=col).alignment = center
+        # Числовые форматы (RU): пробел как разделитель тысяч, запятая — десятичная
+        ws.cell(row=row_idx, column=3).number_format = '# ##0'
+        ws.cell(row=row_idx, column=4).number_format = '# ##0'
+        ws.cell(row=row_idx, column=5).number_format = '# ##0'
+        row_idx += 1
+        counter += 1
+
+    # ИТОГО
+    ws.append(["", "", "", "ИТОГО, руб. с НДС", total])
+    for col in range(1, len(headers) + 1):
+        ws.cell(row=row_idx, column=col).border = border
+        if col in (4, 5):
+            ws.cell(row=row_idx, column=col).font = bold
+            ws.cell(row=row_idx, column=col).alignment = center
+        if col == 5:
+            ws.cell(row=row_idx, column=col).number_format = '# ##0'
+    row_idx += 1
+
+    # Ширины колонок и выравнивание
+    ws.column_dimensions['A'].width = 6   # н/п
+    ws.column_dimensions['B'].width = 70  # Наименование
+    ws.column_dimensions['C'].width = 18  # Цена
+    ws.column_dimensions['D'].width = 12  # Кол-во
+    ws.column_dimensions['E'].width = 20  # Сумма
+
+    if messages:
+        ws2 = wb.create_sheet("Комментарии")
+        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+        bold = Font(bold=True)
+        center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        thin = Side(style="thin")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        header_fill = PatternFill("solid", fgColor="F2F2F2")
+
+        # Заголовки как у основного листа
+        headers2 = ["н/п", "Наименование", "Цена, руб. с НДС", "Кол-во, шт.", "Сумма, руб. с НДС"]
+        ws2.append(headers2)
+        for col in range(1, len(headers2) + 1):
+            cell = ws2.cell(row=1, column=col)
+            cell.font = bold
+            cell.alignment = center
+            cell.border = border
+            cell.fill = header_fill
+
+        row_c = 2
+        counter_c = 1
+
+        # Если среди сообщений есть общий заголовок (например, про приводы) — выведем строкой-группой
+        title_written = False
+        for msg in messages:
+            if "Не забудьте добавить привод" in str(msg):
+                ws2.append(["Не забудьте добавить привод!", "", "", "", ""])
+                for col in range(1, len(headers2) + 1):
+                    ws2.cell(row=row_c, column=col).border = border
+                    ws2.cell(row=row_c, column=col).font = bold
+                    ws2.cell(row=row_c, column=1).alignment = left
+                row_c += 1
+                title_written = True
+                break
+
+        import re
+        leftovers: list[str] = []
+
+        # Разбираем каждое сообщение, ищем маркеры вида "• 7547 — Электропривод ..."
+        for msg in messages:
+            text = str(msg).replace("&lt;br&gt;", "\n").replace("<br>", "\n")
+            # Если это список с точками — распарсим построчно
+            lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+            parsed_any = False
+            for ln in lines:
+                # Уберём лидирующие маркеры
+                ln_clean = ln.lstrip("•-— ").strip()
+                m = re.match(r"^(\d+)\s*[—-]\s*(.+)$", ln_clean)
+                if not m:
+                    continue
+                art = m.group(1).strip()
+                name = m.group(2).strip()
+                price = _price_of(art)
+                qty = 1.0
+                summa = price * qty
+
+                ws2.append([counter_c, f"{art} — {name}", price, qty, summa])
+                for col in range(1, len(headers2) + 1):
+                    ws2.cell(row=row_c, column=col).border = border
+                    ws2.cell(row=row_c, column=2).alignment = left
+                    if col in (1, 3, 4, 5):
+                        ws2.cell(row=row_c, column=col).alignment = center
+                ws2.cell(row=row_c, column=3).number_format = '# ##0'
+                ws2.cell(row=row_c, column=4).number_format = '# ##0'
+                ws2.cell(row=row_c, column=5).number_format = '# ##0'
+                row_c += 1
+                counter_c += 1
+                parsed_any = True
+
+            if not parsed_any and text:
+                leftovers.append(text)
+
+        # Если есть непреобразованные сообщения — добавим их отдельным блоком ниже таблицы
+        if leftovers:
+            # Пустая строка-разделитель
+            ws2.append(["", "", "", "", ""])
+            for col in range(1, len(headers2) + 1):
+                ws2.cell(row=row_c, column=col).border = border
+            row_c += 1
+
+            ws2.append(["Примечания", "", "", "", ""])
+            for col in range(1, len(headers2) + 1):
+                ws2.cell(row=row_c, column=col).border = border
+                ws2.cell(row=row_c, column=col).font = bold
+            row_c += 1
+
+            for text in leftovers:
+                # Каждое примечание — одной ячейкой в колонке B, во всех остальных — прочерки
+                ws2.append(["", text, "", "", ""])
+                ws2.cell(row=row_c, column=2).alignment = left
+                for col in range(1, len(headers2) + 1):
+                    ws2.cell(row=row_c, column=col).border = border
+                row_c += 1
+
+        # Ширины колонок как у основного листа
+        ws2.column_dimensions['A'].width = 6
+        ws2.column_dimensions['B'].width = 70
+        ws2.column_dimensions['C'].width = 18
+        ws2.column_dimensions['D'].width = 12
+        ws2.column_dimensions['E'].width = 20
+
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    filename = f"KP_{payload.get('tip','X')}_{payload.get('diametr','D')}.xlsx"
+    return send_file(stream, as_attachment=True, download_name=filename, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 @app.route("/", methods=["GET"])
