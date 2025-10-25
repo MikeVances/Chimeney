@@ -12,147 +12,158 @@
   <link rel="apple-touch-icon" href="/web/agroventlabel.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/web/agroventlabel.png">
   <link rel="manifest" href="/web/manifest.webmanifest">
+  <link rel="stylesheet" href="/web/style.css">
   <meta name="theme-color" content="#0f6fff">
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; line-height: 1.4 }
-    fieldset { margin-bottom: 16px; }
-    label { display:block; margin: 8px 0 4px; }
-    .row { display:flex; flex-wrap:wrap; gap:16px; }
-    .col { min-width: 220px; flex: 1; }
-    .hidden { display:none; }
-    .result-item { white-space: pre-wrap; margin: 8px 0 12px; padding: 8px; border: 1px solid #eee; border-radius: 10px; }
-  </style>
 </head>
 <body>
-  <h1>Подбор вентиляционной шахты</h1>
+  <div class="page-container" id="page-container">
+    <!-- Page 1: Main app -->
+    <section class="page active" id="page-main">
+      <h1>Подбор вентиляционной шахты</h1>
 
-  <form id="search-form">
-    <fieldset>
-      <legend>Базовые параметры</legend>
-      <div class="row">
-        <div class="col">
-          <label for="тип">Тип шахты</label>
-          <select id="тип" name="тип" required>
-            <option value="">— выберите —</option>
-            <option value="вытяжная">вытяжная</option>
-            <option value="приточная активная">приточная активная</option>
-            <option value="приточная пассивная">приточная пассивная</option>
-            <option value="приточная с подмешиванием">приточная с подмешиванием</option>
-          </select>
-        </div>
-        <div class="col">
-          <label for="диаметр">Диаметр</label>
-          <select id="диаметр" name="диаметр" required>
-            <option value="">— выберите —</option>
-            <option value="560">560</option>
-            <option value="710">710</option>
-            <option value="800">800</option>
-            <option value="1100">1100</option>
-          </select>
-        </div>
-      </div>
-    </fieldset>
+      <form id="search-form">
+        <fieldset>
+          <legend>Базовые параметры</legend>
+          <div class="row">
+            <div class="col">
+              <label for="тип">Тип шахты</label>
+              <select id="тип" name="тип" required>
+                <option value="">— выберите —</option>
+                <option value="вытяжная">вытяжная</option>
+                <option value="приточная активная">приточная активная</option>
+                <option value="приточная пассивная">приточная пассивная</option>
+                <option value="приточная с подмешиванием">приточная с подмешиванием</option>
+              </select>
+            </div>
+            <div class="col">
+              <label for="диаметр">Диаметр</label>
+              <select id="диаметр" name="диаметр" required>
+                <option value="">— выберите —</option>
+                <option value="560">560</option>
+                <option value="710">710</option>
+                <option value="800">800</option>
+                <option value="1100">1100</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
 
-    <fieldset>
-      <legend>Клапан</legend>
-      <div class="row">
-        <div class="col">
-          <label for="тип_клапана">Тип клапана</label>
-          <select id="тип_клапана" name="тип_клапана" required>
-            <option value="">— выберите —</option>
-            <option value="поворотный">поворотный</option>
-            <option value="гравитационный">гравитационный</option>
-            <option value="двустворчатый">двустворчатый</option>
-          </select>
-        </div>
-        <div class="col" id="col-расположение">
-          <label for="расположение_клапана">Расположение (для поворотного)</label>
-          <select id="расположение_клапана" name="расположение_клапана">
-            <option value="">— выберите —</option>
-            <option value="низ">низ</option>
-            <option value="верх">верх</option>
-          </select>
-        </div>
-        <div class="col" id="col-тип-гравитационного">
-          <label for="тип_гравитационного">Тип гравитационного</label>
-          <select id="тип_гравитационного" name="тип_гравитационного">
-            <option value="">— выберите —</option>
-            <option value="внутренний">внутренний</option>
-            <option value="внешний">внешний</option>
-          </select>
-        </div>
-      </div>
-    </fieldset>
+        <fieldset>
+          <legend>Клапан</legend>
+          <div class="row">
+            <div class="col">
+              <label for="тип_клапана">Тип клапана</label>
+              <select id="тип_клапана" name="тип_клапана" required>
+                <option value="">— выберите —</option>
+                <option value="поворотный">поворотный</option>
+                <option value="гравитационный">гравитационный</option>
+                <option value="двустворчатый">двустворчатый</option>
+              </select>
+            </div>
+            <div class="col" id="col-расположение">
+              <label for="расположение_клапана">Расположение (для поворотного)</label>
+              <select id="расположение_клапана" name="расположение_клапана">
+                <option value="">— выберите —</option>
+                <option value="низ">низ</option>
+                <option value="верх">верх</option>
+              </select>
+            </div>
+            <div class="col" id="col-тип-гравитационного">
+              <label for="тип_гравитационного">Тип гравитационного</label>
+              <select id="тип_гравитационного" name="тип_гравитационного">
+                <option value="">— выберите —</option>
+                <option value="внутренний">внутренний</option>
+                <option value="внешний">внешний</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
 
-    <fieldset>
-      <legend>Привод и питание</legend>
-      <div class="row">
-        <div class="col">
-          <label for="тип_мотора">Тип мотора</label>
-          <select id="тип_мотора" name="тип_мотора">
-            <option value="">— выберите —</option>
-            <option value="6e">6E (однофазный)</option>
-            <option value="6d">6D (трёхфазный)</option>
-          </select>
-        </div>
-        <div class="col">
-          <label for="мощность">Мощность, Вт</label>
-          <select id="мощность" name="мощность">
-            <option value="">— выберите —</option>
-            <option value="370">370</option>
-            <option value="750">750</option>
-          </select>
-        </div>
-      </div>
-      <p style="margin:8px 0 0; font-size: 12px; color:#666">
-        Для «вытяжной», «приточной активной» и «с подмешиванием» указывайте тип мотора и мощность.
+        <fieldset>
+          <legend>Привод и питание</legend>
+          <div class="row">
+            <div class="col">
+              <label for="тип_мотора">Тип мотора</label>
+              <select id="тип_мотора" name="тип_мотора">
+                <option value="">— выберите —</option>
+                <option value="6e">6E (однофазный)</option>
+                <option value="6d">6D (трёхфазный)</option>
+              </select>
+            </div>
+            <div class="col">
+              <label for="мощность">Мощность, Вт</label>
+              <select id="мощность" name="мощность">
+                <option value="">— выберите —</option>
+                <option value="370">370</option>
+                <option value="750">750</option>
+              </select>
+            </div>
+          </div>
+          <p style="margin:8px 0 0; font-size: 12px; color:#666">
+            Для «вытяжной», «приточной активной» и «с подмешиванием» указывайте тип мотора и мощность.
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Верхняя часть и опции</legend>
+          <div class="row">
+            <div class="col">
+              <label for="верхняя_часть">Верхняя часть</label>
+              <select id="верхняя_часть" name="верхняя_часть">
+                <option value="">— выберите —</option>
+                <option value="зонт">зонт</option>
+                <option value="раструб">раструб</option>
+              </select>
+            </div>
+            <div class="col">
+              <label>Герметизация</label>
+              <div><label><input type="checkbox" id="герм_мембрана"> Мембрана</label></div>
+              <div><label><input type="checkbox" id="герм_лента"> Лента битумная</label></div>
+            </div>
+            <div class="col">
+              <label>Дополнительно</label>
+              <div><label><input type="checkbox" id="автомат"> Автомат защиты</label></div>
+              <div><label><input type="checkbox" id="каплеулавливатель"> Каплеулавливатель</label></div>
+              <div><label><input type="checkbox" id="монтажный_комплект"> Монтажный комплект</label></div>
+            </div>
+            <div class="col hidden" id="col-корона">
+              <label>Распределитель</label>
+              <div><label><input type="checkbox" id="корона"> Корона</label></div>
+              <small style="color:#666">Показывается только для VBA/VBP при поворотном или гравитационном клапане</small>
+            </div>
+            <div class="col">
+              <label for="удлинение">Удлинение (м)</label>
+              <input type="number" id="удлинение" name="удлинение" value="0" min="0" step="1" />
+            </div>
+          </div>
+        </fieldset>
+
+        <p style="margin-top:8px; text-align:center">
+          <button type="submit" style="font-size:1.25em; padding:10px 22px">Подобрать</button>
+        </p>
+      </form>
+
+      <h2>Результат</h2>
+      <div id="result"></div>
+      <p style="margin-top:16px; text-align:center">
+        <button type="button" id="new-calc-btn" style="font-size:1.1em; padding:8px 16px">Сделать новый расчёт</button>
       </p>
-    </fieldset>
+    </section>
 
-    <fieldset>
-      <legend>Верхняя часть и опции</legend>
-      <div class="row">
-        <div class="col">
-          <label for="верхняя_часть">Верхняя часть</label>
-          <select id="верхняя_часть" name="верхняя_часть">
-            <option value="">— выберите —</option>
-            <option value="зонт">зонт</option>
-            <option value="раструб">раструб</option>
-          </select>
-        </div>
-        <div class="col">
-          <label>Герметизация</label>
-          <div><label><input type="checkbox" id="герм_мембрана"> Мембрана</label></div>
-          <div><label><input type="checkbox" id="герм_лента"> Лента битумная</label></div>
-        </div>
-        <div class="col">
-          <label>Дополнительно</label>
-          <div><label><input type="checkbox" id="автомат"> Автомат защиты</label></div>
-          <div><label><input type="checkbox" id="каплеулавливатель"> Каплеулавливатель</label></div>
-          <div><label><input type="checkbox" id="монтажный_комплект"> Монтажный комплект</label></div>
-        </div>
-        <div class="col hidden" id="col-корона">
-          <label>Распределитель</label>
-          <div><label><input type="checkbox" id="корона"> Корона</label></div>
-          <small style="color:#666">Показывается только для VBA/VBP при поворотном или гравитационном клапане</small>
-        </div>
-        <div class="col">
-          <label for="удлинение">Удлинение (м)</label>
-          <input type="number" id="удлинение" name="удлинение" value="0" min="0" step="1" />
+    <!-- Page 2: Coming soon -->
+    <section class="page" id="page-upcoming">
+      <div class="coming-soon">
+        <div class="coming-card">
+          <h2>🚀 Скоро выпуск</h2>
+          <p>Следите за обновлениями — мы готовим новые инструменты для Chimeney.</p>
+          <small style="color:#999">Смахните, чтобы вернуться</small>
         </div>
       </div>
-    </fieldset>
+    </section>
+  </div>
 
-    <p style="margin-top:8px; text-align:center">
-      <button type="submit" style="font-size:1.25em; padding:10px 22px">Подобрать</button>
-    </p>
-  </form>
-
-  <h2>Результат</h2>
-  <div id="result"></div>
-  <p style="margin-top:16px; text-align:center">
-    <button type="button" id="new-calc-btn" style="font-size:1.1em; padding:8px 16px">Сделать новый расчёт</button>
-  </p>
+  <div class="pager" id="pager" aria-label="Навигация по страницам"></div>
+  <div class="hint">Смахните чтобы увидеть «Скоро выпуск»</div>
 
   <script src="/web/script.js"></script>
 </body>

@@ -1,0 +1,173 @@
+/* --- Chimeney UI (canonical) ------------------------------------------- */
+
+:root { color-scheme: light dark; }
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  color: #222;
+  background: #fafafa;
+  overflow: hidden;            /* не допускаем вертикальный скролл страницы */
+}
+
+/* ---------------- Swipeable pages ---------------- */
+
+.page-container {
+  display: flex;
+  flex-wrap: nowrap;           /* одна строка — горизонтальная лента */
+  width: 100vw;                /* ширина равна вьюпорту */
+  height: 100vh;               /* высота равна вьюпорту */
+  transition: transform 0.45s cubic-bezier(.25,.1,.25,1);
+  will-change: transform;
+  touch-action: pan-y;
+}
+
+.page {
+  flex: 0 0 100vw;             /* каждая страница = 100% ширины экрана */
+  height: 100vh;               /* и 100% высоты */
+  background: #fafafa;
+  padding: 24px;
+  overflow-y: auto;            /* содержимое может прокручиваться */
+  -webkit-overflow-scrolling: touch;
+  transition: background .4s ease, box-shadow .4s ease;
+}
+.page.active {
+  background: #fff;
+  box-shadow: inset 0 0 30px rgba(0,0,0,.05);
+}
+
+h1, h2, legend { color: #333; margin-top: 0; }
+
+/* ---------------- Forms & blocks ---------------- */
+
+fieldset {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #fff;
+}
+legend { font-weight: 600; }
+
+label { display: block; margin-bottom: 6px; }
+
+select, input[type="number"], button {
+  width: 100%;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: inherit;
+}
+
+.row { display: flex; flex-wrap: wrap; gap: 16px; }
+.col { min-width: 220px; flex: 1; }
+.hidden { display: none; }
+
+.result-item {
+  white-space: pre-wrap;
+  margin: 8px 0 12px;
+  padding: 8px;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* ---------------- Coming soon ---------------- */
+
+.coming-soon {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #333;
+  background: linear-gradient(180deg, #fefefe 0%, #f5f5f5 100%);
+}
+.coming-card {
+  max-width: 520px;
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid #e5e5e5;
+  background: #fff;
+  box-shadow: 0 6px 22px rgba(0,0,0,0.04);
+  text-align: center;
+  animation: fadeIn .6s ease;
+}
+.coming-card h2 { margin: 0 0 8px; }
+.coming-card p { margin: 0 0 16px; color: #666; }
+
+/* ---------------- Hint bubble ---------------- */
+
+.hint {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #777;
+  background: rgba(255,255,255,.9);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #eee;
+  box-shadow: 0 2px 6px rgba(0,0,0,.05);
+  backdrop-filter: blur(8px);
+  z-index: 6;
+}
+
+/* ---------------- iOS-style page indicators ---------------- */
+
+.pager {
+  position: fixed;
+  left: 50%;
+  bottom: 44px;               /* над подсказкой */
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,.9);
+  border: 1px solid #eee;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.06);
+  backdrop-filter: blur(8px);
+  z-index: 7;
+}
+.pager .dot {
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: #cfd3da;
+  transition: width .25s ease, background .25s ease, opacity .25s ease;
+  opacity: .8;
+  cursor: pointer;
+}
+.pager .dot.active {
+  width: 18px;               /* «таблетка» как в iOS */
+  background: #0f6fff;
+  opacity: 1;
+}
+
+@media (hover:hover) { .pager .dot:hover { opacity: 1; } }
+
+/* ---------------- Dark mode ---------------- */
+
+@media (prefers-color-scheme: dark) {
+  body { background: #121212; color: #e5e5e5; }
+  .page { background: #171717; }
+  .page.active { background: #1b1b1b; box-shadow: inset 0 0 30px rgba(0,0,0,.35); }
+  fieldset { background: #1f1f1f; border-color: #333; }
+  select, input[type="number"], button { background:#1f1f1f; border-color:#333; color:#e5e5e5; }
+  .result-item { background:#1f1f1f; border-color:#333; }
+  .pager { background: rgba(20,20,20,.7); border-color: rgba(255,255,255,.08); box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+  .pager .dot { background: #6b7280; }
+  .pager .dot.active { background: #60a5fa; }
+}
+
+/* ---------------- Animations ---------------- */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

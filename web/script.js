@@ -245,6 +245,24 @@
     }
   }
 
+  // --- Helper to render backend messages with safe <br> and bullet lists ---
+  function formatMessage(msg){
+    const raw = String(msg || '');
+    // Разрешаем только перенос строк: превращаем &lt;br&gt; в <br>
+    const withBr = raw.replaceAll('&lt;br&gt;', '<br>');
+    // Превратим «• ...» в маркированный список (если такие строки есть)
+    const tmp = withBr.replaceAll('<br />', '<br>');
+    const lines = tmp.split('<br>').map(s => s.trim()).filter(Boolean);
+    const hasBullets = lines.some(l => l.startsWith('•'));
+    if (hasBullets){
+      const [title, ...rest] = lines;
+      const items = rest.map(l => l.replace(/^•\s*/, '')).filter(Boolean);
+      const ul = items.length ? `<ul>${items.map(li => `<li>${li}</li>`).join('')}</ul>` : '';
+      return `<div>${title || ''}</div>${ul}`;
+    }
+    return withBr;
+  }
+
   fldKlapan.addEventListener('change', ()=>{ enforceValveConstraints(); toggleValveFields(); toggleMotorFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
   fldType.addEventListener('change', ()=>{ enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
   fldDiam.addEventListener('change', ()=>{ enforcePowerByDiamAndType(); });
@@ -290,10 +308,11 @@
           const qty = it.quantity ?? '-';
           return `<div class="result-item"><strong>Артикул:</strong> ${art}<br><strong>Наименование:</strong> ${name}<br><strong>Количество:</strong> ${qty}</div>`;
         }).join('');
-        resultDiv.innerHTML = data.message ? html + `<div class="result-item"><br><em>${data.message}</em></div>` : html;
+        const messageHtml = data.message ? `<div class="result-item"><br><em>${formatMessage(data.message)}</em></div>` : '';
+        resultDiv.innerHTML = html + messageHtml;
         enableDownloadIfResults(data.results, payload);
       } else {
-        resultDiv.textContent = data.message || 'Ничего не найдено';
+        resultDiv.innerHTML = data.message ? `<em>${formatMessage(data.message)}</em>` : 'Ничего не найдено';
         enableDownloadIfResults([], payload);
       }
     } catch(err){
@@ -310,4 +329,130 @@
   }
   // На старте — кнопка выгрузки не активна
   if (btnDownload) { btnDownload.disabled = true; }
+  // --- Swipe navigation between pages (main <-> "Скоро выпуск") ---
+  (function setupSwipePages(){
+    // Prevent double init
+    if (window.__chimeneySwipeInit) return;
+    window.__chimeneySwipeInit = true;
+
+    const container = document.getElementById('page-container');
+    if (!container) return; // safety: index.html may not yet be updated
+    const pageMain = document.getElementById('page-main');
+    const pageUpcoming = document.getElementById('page-upcoming');
+    const hint = document.querySelector('.hint');
+    const pager = document.getElementById('pager');
+    const pages = Array.from(container.querySelectorAll('.page'));
+
+    let currentPage = 0; // 0: main, 1: upcoming
+    const THRESHOLD = 50;     // min px for swipe
+    const ANGLE_GUARD = 0.6;  // ignore mostly vertical gestures
+
+    function updateDots(){
+      if (!pager) return;
+      for (let i = 0; i < pager.children.length; i++) {
+        pager.children[i].classList.toggle('active', i === currentPage);
+      }
+    }
+
+    function renderPager(){
+      if (!pager) return;
+      pager.innerHTML = '';
+      pages.forEach((_, idx) => {
+        const dot = document.createElement('span');
+        dot.className = 'dot' + (idx === currentPage ? ' active' : '');
+        dot.title = `Страница ${idx + 1}`;
+        dot.addEventListener('click', () => goTo(idx));
+        pager.appendChild(dot);
+      });
+    }
+
+    function goTo(page){
+      currentPage = Math.max(0, Math.min(pages.length - 1, page));
+      const dx = currentPage * -100; // vw
+      container.style.transform = `translateX(${dx}vw)`;
+      if (pageMain) pageMain.classList.toggle('active', currentPage === 0);
+      if (pageUpcoming) pageUpcoming.classList.toggle('active', currentPage === 1);
+      if (hint) hint.style.display = (currentPage === 0) ? 'block' : 'none';
+      updateDots();
+    }
+
+    // --- Touch support on the container (mobile/tablets)
+    let startX = 0, startY = 0, tracking = false;
+    container.addEventListener('touchstart', (e)=>{
+      const t = e.touches[0];
+      startX = t.clientX; startY = t.clientY; tracking = true;
+    }, {passive:true});
+
+    container.addEventListener('touchmove', (e)=>{
+      if (!tracking) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      // if horizontal intent dominates — prevent vertical scroll to capture the swipe
+      if (Math.abs(dx) > Math.abs(dy) / ANGLE_GUARD) {
+        e.preventDefault();
+      }
+    }, {passive:false});
+
+    container.addEventListener('touchend', (e)=>{
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (Math.abs(dx) < THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+      if (dx < 0 && currentPage < pages.length - 1) goTo(currentPage + 1);
+      else if (dx > 0 && currentPage > 0) goTo(currentPage - 1);
+    });
+
+    // --- Trackpad / wheel support (desktop & laptops)
+    let wheelAccum = 0;
+    let lastWheelTs = 0;
+    const WHEEL_THRESHOLD = 120; // typical per "one notch"
+    container.addEventListener('wheel', (e) => {
+      const now = Date.now();
+      const absX = Math.abs(e.deltaX), absY = Math.abs(e.deltaY);
+      if (absX < absY) return; // mostly vertical — ignore
+
+      if (now - lastWheelTs > 300) wheelAccum = 0; // decay
+      wheelAccum += e.deltaX;
+      lastWheelTs = now;
+
+      if (wheelAccum > WHEEL_THRESHOLD && currentPage < pages.length - 1) {
+        e.preventDefault();
+        wheelAccum = 0;
+        goTo(currentPage + 1);
+      } else if (wheelAccum < -WHEEL_THRESHOLD && currentPage > 0) {
+        e.preventDefault();
+        wheelAccum = 0;
+        goTo(currentPage - 1);
+      }
+    }, { passive: false });
+
+    // --- Mouse drag support (desktop)
+    let mouseDown = false, mStartX = 0, mStartY = 0;
+    container.addEventListener('mousedown', (e)=>{
+      mouseDown = true; mStartX = e.clientX; mStartY = e.clientY;
+    });
+    container.addEventListener('mouseup', (e)=>{
+      if (!mouseDown) return;
+      mouseDown = false;
+      const dx = e.clientX - mStartX;
+      const dy = e.clientY - mStartY;
+      if (Math.abs(dx) < THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+      if (dx < 0 && currentPage < pages.length - 1) goTo(currentPage + 1);
+      else if (dx > 0 && currentPage > 0) goTo(currentPage - 1);
+    });
+
+    // --- Keyboard support (desktop): arrows ← →
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'ArrowLeft') goTo(Math.max(0, currentPage - 1));
+      else if (e.key === 'ArrowRight') goTo(Math.min(pages.length - 1, currentPage + 1));
+    });
+
+    // Init: render dots and always start on page 0 (also after bfcache restore)
+    renderPager();
+    goTo(0);
+    window.addEventListener('pageshow', () => { goTo(0); });
+  })();
 })();
