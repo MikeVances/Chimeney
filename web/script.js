@@ -342,6 +342,46 @@
     const hint = document.querySelector('.hint');
     const pager = document.getElementById('pager');
     const pages = Array.from(container.querySelectorAll('.page'));
+
+    // --- Dynamic --vh to fix iOS 100vh jumps ---
+    function setVh(){
+      document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+    }
+    setVh();
+    window.addEventListener('resize', setVh);
+    window.addEventListener('orientationchange', setVh);
+
+    // Helper to get current page width in px (used for translateX)
+    function pageWidth(){ return container.getBoundingClientRect().width; }
+
+    // --- Keyboard open/close heuristics (iOS/Android) ---
+    function markKeyboard(open){
+      document.body.classList.toggle('keyboard-open', !!open);
+      // Recompute vh and realign current page after keyboard transitions
+      setTimeout(()=>{
+        setVh();
+        container.style.transform = `translateX(${-currentPage * pageWidth()}px)`;
+      }, open ? 50 : 0);
+    }
+
+    // Focusin/out are reliable to detect soft keyboard on mobile browsers
+    window.addEventListener('focusin', (e)=>{
+      const el = e.target;
+      if (!el || !el.tagName) return;
+      const tag = el.tagName.toUpperCase();
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') {
+        markKeyboard(true);
+      }
+    });
+
+    window.addEventListener('focusout', (e)=>{
+      const el = e.target;
+      if (!el || !el.tagName) return;
+      const tag = el.tagName.toUpperCase();
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') {
+        markKeyboard(false);
+      }
+    });
     // iOS detection (iPhone/iPad/iPod + iPadOS touch Safari)
     const IS_IOS = /iP(hone|ad|od)/.test(navigator.platform) ||
                    (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
@@ -374,8 +414,9 @@
       const prev = currentPage;
       currentPage = target;
 
-      const dx = currentPage * -100; // vw
-      container.style.transform = `translateX(${dx}vw)`;
+      // translate by exact pixel width to avoid WebKit vw glitches
+      const dx = -currentPage * pageWidth();
+      container.style.transform = `translateX(${dx}px)`;
       if (pageMain) pageMain.classList.toggle('active', currentPage === 0);
       if (pageUpcoming) pageUpcoming.classList.toggle('active', currentPage === 1);
       if (hint) hint.style.display = (currentPage === 0) ? 'block' : 'none';
@@ -482,6 +523,16 @@
     renderPager();
     goTo(0);
     window.addEventListener('pageshow', () => { goTo(0); });
+
+    // Recalculate transform on resize/orientation to keep the current page centered
+    window.addEventListener('resize', ()=>{
+      container.style.transform = `translateX(${-currentPage * pageWidth()}px)`;
+    });
+    window.addEventListener('orientationchange', ()=>{
+      setTimeout(()=>{
+        container.style.transform = `translateX(${-currentPage * pageWidth()}px)`;
+      }, 0);
+    });
     // --- History integration (iOS only) to keep back/forward inside the pager
     if (IS_IOS) {
       try {
