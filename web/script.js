@@ -342,6 +342,9 @@
     const hint = document.querySelector('.hint');
     const pager = document.getElementById('pager');
     const pages = Array.from(container.querySelectorAll('.page'));
+    // iOS detection (iPhone/iPad/iPod + iPadOS touch Safari)
+    const IS_IOS = /iP(hone|ad|od)/.test(navigator.platform) ||
+                   (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
 
     let currentPage = 0; // 0: main, 1: upcoming
     const THRESHOLD = 50;     // min px for swipe
@@ -374,13 +377,21 @@
       if (pageUpcoming) pageUpcoming.classList.toggle('active', currentPage === 1);
       if (hint) hint.style.display = (currentPage === 0) ? 'block' : 'none';
       updateDots();
+      // Keep virtual page in history on iOS to tame system back-swipe
+      if (IS_IOS) {
+        try { history.replaceState({ chimeney: true, page: currentPage }, ''); } catch(e){}
+      }
     }
 
-    // --- Touch support on the container (mobile/tablets)
-    let startX = 0, startY = 0, tracking = false;
+    // --- Touch support on the container (mobile/tablets) with iOS edge-swipe guard
+    let startX = 0, startY = 0, tracking = false, edgeSwipe = false;
+    const EDGE_GUARD = 24; // px from the left/right edge considered a system-swipe zone on iOS
+
     container.addEventListener('touchstart', (e)=>{
       const t = e.touches[0];
       startX = t.clientX; startY = t.clientY; tracking = true;
+      // on iOS, detect if gesture starts at the left or right edge
+      edgeSwipe = IS_IOS && (t.clientX <= EDGE_GUARD || t.clientX >= (window.innerWidth - EDGE_GUARD));
     }, {passive:true});
 
     container.addEventListener('touchmove', (e)=>{
@@ -388,8 +399,10 @@
       const t = e.touches[0];
       const dx = t.clientX - startX;
       const dy = t.clientY - startY;
-      // if horizontal intent dominates — prevent vertical scroll to capture the swipe
-      if (Math.abs(dx) > Math.abs(dy) / ANGLE_GUARD) {
+      const mostlyHorizontal = Math.abs(dx) > Math.abs(dy) / ANGLE_GUARD;
+      // If horizontal intent dominates — prevent vertical scroll
+      // Additionally, if this is an iOS edge swipe, prevent browser back/forward handling
+      if (mostlyHorizontal || edgeSwipe) {
         e.preventDefault();
       }
     }, {passive:false});
@@ -454,5 +467,21 @@
     renderPager();
     goTo(0);
     window.addEventListener('pageshow', () => { goTo(0); });
+    // --- History integration (iOS only) to keep back-swipe inside the pager
+    if (IS_IOS) {
+      try {
+        history.scrollRestoration = 'manual';
+        if (!history.state || history.state.chimeney !== true) {
+          history.replaceState({ chimeney: true, page: 0 }, '');
+        }
+        window.addEventListener('popstate', (e) => {
+          const st = e.state || {};
+          if (st.chimeney === true && typeof st.page === 'number') {
+            goTo(st.page);
+            try { history.replaceState({ chimeney: true, page: st.page }, ''); } catch(_){}
+          }
+        });
+      } catch(_) {}
+    }
   })();
 })();

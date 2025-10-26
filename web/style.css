@@ -11,6 +11,7 @@ body {
   color: #222;
   background: #fafafa;
   overflow: hidden;            /* не допускаем вертикальный скролл страницы */
+  overscroll-behavior-x: none;
 }
 
 /* ---------------- Swipeable pages ---------------- */
@@ -23,6 +24,7 @@ body {
   transition: transform 0.45s cubic-bezier(.25,.1,.25,1);
   will-change: transform;
   touch-action: pan-y;
+  overscroll-behavior-x: none;
 }
 
 .page {
