@@ -370,16 +370,31 @@
     }
 
     function goTo(page){
-      currentPage = Math.max(0, Math.min(pages.length - 1, page));
+      const target = Math.max(0, Math.min(pages.length - 1, page));
+      const prev = currentPage;
+      currentPage = target;
+
       const dx = currentPage * -100; // vw
       container.style.transform = `translateX(${dx}vw)`;
       if (pageMain) pageMain.classList.toggle('active', currentPage === 0);
       if (pageUpcoming) pageUpcoming.classList.toggle('active', currentPage === 1);
       if (hint) hint.style.display = (currentPage === 0) ? 'block' : 'none';
       updateDots();
-      // Keep virtual page in history on iOS to tame system back-swipe
+
+      // iOS History: keep in-app steps in the stack so edge back/forward works inside the pager
       if (IS_IOS) {
-        try { history.replaceState({ chimeney: true, page: currentPage }, ''); } catch(e){}
+        try {
+          const st = history.state || {};
+          if (typeof st.page !== 'number') {
+            history.replaceState({ chimeney: true, page: currentPage }, '');
+          } else if (currentPage > prev) {
+            // forward navigation -> push new state
+            if (st.page !== currentPage) history.pushState({ chimeney: true, page: currentPage }, '');
+          } else if (currentPage < prev) {
+            // backward programmatic nav -> replace (don't grow stack)
+            if (st.page !== currentPage) history.replaceState({ chimeney: true, page: currentPage }, '');
+          }
+        } catch(e){}
       }
     }
 
@@ -467,18 +482,28 @@
     renderPager();
     goTo(0);
     window.addEventListener('pageshow', () => { goTo(0); });
-    // --- History integration (iOS only) to keep back-swipe inside the pager
+    // --- History integration (iOS only) to keep back/forward inside the pager
     if (IS_IOS) {
       try {
         history.scrollRestoration = 'manual';
+        // Ensure we have at least one in-app state
         if (!history.state || history.state.chimeney !== true) {
           history.replaceState({ chimeney: true, page: 0 }, '');
         }
+        // Add a guard state so a right-edge back gesture from page 0 stays in-app
+        // (user will need to back twice to leave the app, which is acceptable for SPA)
+        history.pushState({ chimeney: true, page: 0 }, '');
+
         window.addEventListener('popstate', (e) => {
           const st = e.state || {};
           if (st.chimeney === true && typeof st.page === 'number') {
+            // Navigate inside the pager without leaving the app
             goTo(st.page);
+            // Keep current state updated
             try { history.replaceState({ chimeney: true, page: st.page }, ''); } catch(_){}
+          } else {
+            // If some external state sneaks in, restore our state
+            try { history.replaceState({ chimeney: true, page: currentPage }, ''); } catch(_){}
           }
         });
       } catch(_) {}
