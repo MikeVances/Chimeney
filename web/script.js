@@ -61,6 +61,7 @@
   const dirPrev = document.getElementById('directory-prev');
   const dirNext = document.getElementById('directory-next');
   const dirRefresh = document.getElementById('directory-refresh');
+  let searchDebounce = null;
 
   const directoryState = {
     page: 1,
@@ -367,6 +368,22 @@
     }[ch] || ch));
   }
 
+  function escapeRegExp(str){
+    return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  }
+
+  function highlightMatch(text, query){
+    const safe = escapeHtml(text || '');
+    const q = (query || '').trim();
+    if (!q) return safe;
+    try {
+      const reg = new RegExp(escapeRegExp(q), 'ig');
+      return safe.replace(reg, (match) => `<mark>${match}</mark>`);
+    } catch (_) {
+      return safe;
+    }
+  }
+
   function updateFacetOptions(facets){
     if (!facets) return;
     directoryState.hasFacets = true;
@@ -387,14 +404,15 @@
   function renderDirectoryList(items){
     if (!dirList) return;
     dirList.innerHTML = '';
+    const query = (dirSearch?.value || '').trim();
     items.forEach(item => {
       const li = document.createElement('li');
       li.dataset.id = String(item.id);
       li.tabIndex = 0;
       li.innerHTML = `
-        <h4>${escapeHtml(item.name)}</h4>
-        <div class="meta">${escapeHtml(item.region || 'Регион не указан')} · ${escapeHtml(item.production_primary || 'тип не указан')}</div>
-        <div class="meta">${item.holding_name ? 'Холдинг: ' + escapeHtml(item.holding_name) : 'Самостоятельная компания'}</div>
+        <h4>${highlightMatch(item.name, query)}</h4>
+        <div class="meta">${highlightMatch(item.region || 'Регион не указан', query)} · ${highlightMatch(item.production_primary || 'тип не указан', query)}</div>
+        <div class="meta">${item.holding_name ? 'Холдинг: ' + highlightMatch(item.holding_name, query) : 'Самостоятельная компания'}</div>
       `;
       li.addEventListener('click', () => selectCompany(item.id, li));
       li.addEventListener('keypress', (evt) => {
@@ -532,6 +550,10 @@
       e.preventDefault();
       loadDirectory({ resetPage: true });
     }
+  });
+  if (dirSearch) dirSearch.addEventListener('input', () => {
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => loadDirectory({ resetPage: true }), 350);
   });
   if (dirRegion) dirRegion.addEventListener('change', () => loadDirectory({ resetPage: true }));
   if (dirProduction) dirProduction.addEventListener('change', () => loadDirectory({ resetPage: true }));

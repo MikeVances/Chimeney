@@ -276,9 +276,16 @@ def pick_korona():
 
 # === База справочника компаний ===
 
+def _normalize_text(value: Optional[str]) -> str:
+    if value is None:
+        return ""
+    return str(value).strip().casefold()
+
+
 def _connect_db() -> sqlite3.Connection:
     conn = sqlite3.connect(PIFAGOR_DB)
     conn.row_factory = sqlite3.Row
+    conn.create_function("normtxt", 1, _normalize_text)
     return conn
 
 
@@ -825,11 +832,21 @@ def _list_companies(filters: Dict[str, Any], limit: int, offset: int) -> Dict[st
     ]
     params: List[Any] = []
 
-    search = filters.get("search")
+    search = filters.get("search_norm")
     if search:
-        token = f"%{search.lower()}%"
-        base_sql.append("AND (lower(c.name) LIKE ? OR lower(c.address_full) LIKE ?)")
-        params.extend([token, token])
+        token = f"%{search}%"
+        base_sql.append(
+            "AND ("
+            "normtxt(c.name) LIKE ? OR "
+            "normtxt(c.address_full) LIKE ? OR "
+            "normtxt(coalesce(c.region, '')) LIKE ? OR "
+            "normtxt(coalesce(c.district, '')) LIKE ? OR "
+            "normtxt(coalesce(c.locality, '')) LIKE ? OR "
+            "normtxt(coalesce(c.street, '')) LIKE ? OR "
+            "normtxt(coalesce(h.name, '')) LIKE ?"
+            ")"
+        )
+        params.extend([token] * 7)
 
     region = filters.get("region")
     if region:
@@ -951,8 +968,10 @@ def api_companies_list():
     page = max(1, page)
     offset = (page - 1) * limit
 
+    search_raw = (request.args.get("q") or "").strip()
     filters = {
-        "search": (request.args.get("q") or "").strip(),
+        "search": search_raw,
+        "search_norm": _normalize_text(search_raw) or None,
         "region": (request.args.get("region") or "").strip() or None,
         "production": (request.args.get("production") or "").strip() or None,
         "only_roots": request.args.get("roots") == "1",
