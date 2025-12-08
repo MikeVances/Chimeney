@@ -46,6 +46,31 @@
   const cbKorona = document.getElementById('корона');
   const colKorona = document.getElementById('col-корона');
 
+  // Directory UI references
+  const dirSearch = document.getElementById('directory-search');
+  const dirSearchBtn = document.getElementById('directory-search-btn');
+  const dirRegion = document.getElementById('directory-region');
+  const dirProduction = document.getElementById('directory-production');
+  const dirRoots = document.getElementById('directory-roots');
+  const dirList = document.getElementById('directory-list');
+  const dirDetails = document.getElementById('directory-details');
+  const dirEmpty = document.getElementById('directory-empty');
+  const dirStatus = document.getElementById('directory-status');
+  const dirCounter = document.getElementById('directory-counter');
+  const dirPageLabel = document.getElementById('directory-page');
+  const dirPrev = document.getElementById('directory-prev');
+  const dirNext = document.getElementById('directory-next');
+  const dirRefresh = document.getElementById('directory-refresh');
+
+  const directoryState = {
+    page: 1,
+    limit: 20,
+    total: 0,
+    loading: false,
+    selectedId: null,
+    hasFacets: false,
+  };
+
   function mapType(x){
     switch(x){
       case 'вытяжная': return 'VBV';
@@ -329,6 +354,208 @@
   }
   // На старте — кнопка выгрузки не активна
   if (btnDownload) { btnDownload.disabled = true; }
+
+  async function fetchJSON(url){
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Ошибка запроса');
+    return resp.json();
+  }
+
+  function escapeHtml(value){
+    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch] || ch));
+  }
+
+  function updateFacetOptions(facets){
+    if (!facets) return;
+    directoryState.hasFacets = true;
+    if (dirRegion) {
+      const cur = dirRegion.value;
+      const options = (facets.regions || []).map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+      dirRegion.innerHTML = '<option value="">Все регионы</option>' + options;
+      if (cur) dirRegion.value = cur;
+    }
+    if (dirProduction) {
+      const cur = dirProduction.value;
+      const options = (facets.productions || []).map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+      dirProduction.innerHTML = '<option value="">Любой тип</option>' + options;
+      if (cur) dirProduction.value = cur;
+    }
+  }
+
+  function renderDirectoryList(items){
+    if (!dirList) return;
+    dirList.innerHTML = '';
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.dataset.id = String(item.id);
+      li.tabIndex = 0;
+      li.innerHTML = `
+        <h4>${escapeHtml(item.name)}</h4>
+        <div class="meta">${escapeHtml(item.region || 'Регион не указан')} · ${escapeHtml(item.production_primary || 'тип не указан')}</div>
+        <div class="meta">${item.holding_name ? 'Холдинг: ' + escapeHtml(item.holding_name) : 'Самостоятельная компания'}</div>
+      `;
+      li.addEventListener('click', () => selectCompany(item.id, li));
+      li.addEventListener('keypress', (evt) => {
+        if (evt.key === 'Enter' || evt.key === ' ') {
+          evt.preventDefault();
+          selectCompany(item.id, li);
+        }
+      });
+      if (directoryState.selectedId === item.id) {
+        li.classList.add('active');
+      }
+      dirList.appendChild(li);
+    });
+  }
+
+  function setDirectoryStatus(text){
+    if (dirStatus) dirStatus.textContent = text || '';
+  }
+
+  function updatePagination(){
+    if (!dirPrev || !dirNext || !dirPageLabel) return;
+    const pages = Math.max(1, Math.ceil(directoryState.total / directoryState.limit));
+    dirPrev.disabled = directoryState.page <= 1;
+    dirNext.disabled = directoryState.page >= pages;
+    dirPageLabel.textContent = `Страница ${directoryState.page} из ${pages}`;
+  }
+
+  async function loadDirectory({ resetPage = false, withFacets = false } = {}){
+    if (!dirList) return;
+    if (resetPage) directoryState.page = 1;
+    directoryState.loading = true;
+    setDirectoryStatus('Загрузка...');
+    dirList.innerHTML = '';
+    if (dirEmpty) dirEmpty.hidden = true;
+
+    const params = new URLSearchParams();
+    params.set('limit', String(directoryState.limit));
+    params.set('page', String(directoryState.page));
+    const query = (dirSearch?.value || '').trim();
+    if (query) params.set('q', query);
+    if (dirRegion && dirRegion.value) params.set('region', dirRegion.value);
+    if (dirProduction && dirProduction.value) params.set('production', dirProduction.value);
+    if (dirRoots && dirRoots.checked) params.set('roots', '1');
+    if (withFacets || !directoryState.hasFacets) params.set('facets', '1');
+
+    try {
+      const data = await fetchJSON(`/api/catalog/companies?${params.toString()}`);
+      directoryState.total = data.total || 0;
+      if (dirCounter) dirCounter.textContent = `${directoryState.total} записей`;
+      renderDirectoryList(data.items || []);
+      if ((data.items || []).length === 0 && dirEmpty) dirEmpty.hidden = false;
+      setDirectoryStatus((data.items || []).length ? '' : 'Нет результатов');
+      updatePagination();
+      if (data.facets) updateFacetOptions(data.facets);
+    } catch (err) {
+      console.error(err);
+      setDirectoryStatus('Не удалось загрузить данные');
+    } finally {
+      directoryState.loading = false;
+    }
+  }
+
+  function renderDetailsPlaceholder(){
+    if (!dirDetails) return;
+    dirDetails.innerHTML = '<div class="directory-details-placeholder">Выберите компанию из списка.</div>';
+  }
+
+  function highlightSelection(id){
+    if (!dirList) return;
+    Array.from(dirList.children).forEach(li => {
+      li.classList.toggle('active', Number(li.dataset.id) === id);
+    });
+  }
+
+  async function selectCompany(id, element){
+    directoryState.selectedId = id;
+    highlightSelection(id);
+    if (!dirDetails) return;
+    dirDetails.innerHTML = '<div class="directory-details-placeholder">Загрузка карточки...</div>';
+    try {
+      const data = await fetchJSON(`/api/catalog/companies/${id}`);
+      renderCompanyDetails(data);
+    } catch (err) {
+      console.error(err);
+      dirDetails.innerHTML = '<div class="directory-details-placeholder">Не удалось загрузить данные.</div>';
+    }
+  }
+
+  function renderCompanyDetails(data){
+    if (!dirDetails) return;
+    const address = data.address_full || [data.postal_code, data.region, data.district, data.locality, data.street].filter(Boolean).join(', ');
+    const holding = data.holding_name ? `<span class="badge">Холдинг: ${escapeHtml(data.holding_name)}</span>` : '<span class="badge">Самостоятельная компания</span>';
+    const children = (data.children || []).map(ch => `<li>${escapeHtml(ch.name)}${ch.region ? ` (${escapeHtml(ch.region)})` : ''}</li>`).join('');
+    const contacts = (data.contacts || []).map(c => `
+      <div class="contact-card">
+        <h4>${escapeHtml(c.full_name || c.role || 'Контакт')}</h4>
+        ${c.role ? `<p>Роль: ${escapeHtml(c.role)}</p>` : ''}
+        ${c.phones ? `<p>Телефон: ${escapeHtml(c.phones)}</p>` : ''}
+        ${c.email ? `<p>Email: <a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></p>` : ''}
+      </div>
+    `).join('') || '<p>Контакты не указаны.</p>';
+    const websites = (data.websites || []).map(w => {
+      const safeUrl = escapeHtml(w.url);
+      return `<li><a href="${safeUrl}" target="_blank" rel="noopener">${safeUrl}</a></li>`;
+    }).join('');
+
+    dirDetails.innerHTML = `
+      <div class="section">
+        <h3>${escapeHtml(data.name)}</h3>
+        ${holding}
+        <p>${escapeHtml(address || 'Адрес не указан')}</p>
+      </div>
+      <div class="section">
+        <strong>Тип производства:</strong> ${escapeHtml(data.production_primary || '—')}
+      </div>
+      <div class="section">
+        <strong>Веб-сайты</strong>
+        ${websites ? `<ul>${websites}</ul>` : '<p>Нет данных.</p>'}
+      </div>
+      <div class="section">
+        <strong>Контакты</strong>
+        ${contacts}
+      </div>
+      <div class="section">
+        <strong>Филиалы / дочерние компании</strong>
+        ${children ? `<ul>${children}</ul>` : '<p>Нет дочерних компаний.</p>'}
+      </div>
+    `;
+  }
+
+  // Directory event bindings
+  if (dirSearchBtn) dirSearchBtn.addEventListener('click', () => loadDirectory({ resetPage: true }));
+  if (dirSearch) dirSearch.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      loadDirectory({ resetPage: true });
+    }
+  });
+  if (dirRegion) dirRegion.addEventListener('change', () => loadDirectory({ resetPage: true }));
+  if (dirProduction) dirProduction.addEventListener('change', () => loadDirectory({ resetPage: true }));
+  if (dirRoots) dirRoots.addEventListener('change', () => loadDirectory({ resetPage: true }));
+  if (dirPrev) dirPrev.addEventListener('click', () => {
+    if (directoryState.page > 1) {
+      directoryState.page -= 1;
+      loadDirectory();
+    }
+  });
+  if (dirNext) dirNext.addEventListener('click', () => {
+    const pages = Math.max(1, Math.ceil(directoryState.total / directoryState.limit));
+    if (directoryState.page < pages) {
+      directoryState.page += 1;
+      loadDirectory();
+    }
+  });
+  if (dirRefresh) dirRefresh.addEventListener('click', () => loadDirectory({ withFacets: true }));
+
+  if (dirList) {
+    renderDetailsPlaceholder();
+    loadDirectory({ withFacets: true });
+  }
+
   // --- Swipe navigation between pages (main <-> "Скоро выпуск") ---
   (function setupSwipePages(){
     // Prevent double init
@@ -338,7 +565,7 @@
     const container = document.getElementById('page-container');
     if (!container) return; // safety: index.html may not yet be updated
     const pageMain = document.getElementById('page-main');
-    const pageUpcoming = document.getElementById('page-upcoming');
+    const pageDirectory = document.getElementById('page-directory');
     const hint = document.querySelector('.hint');
     const pager = document.getElementById('pager');
     const pages = Array.from(container.querySelectorAll('.page'));
@@ -418,7 +645,7 @@
       const dx = -currentPage * pageWidth();
       container.style.transform = `translateX(${dx}px)`;
       if (pageMain) pageMain.classList.toggle('active', currentPage === 0);
-      if (pageUpcoming) pageUpcoming.classList.toggle('active', currentPage === 1);
+      if (pageDirectory) pageDirectory.classList.toggle('active', currentPage === 1);
       if (hint) hint.style.display = (currentPage === 0) ? 'block' : 'none';
       updateDots();
 

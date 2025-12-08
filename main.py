@@ -6,7 +6,8 @@ from flask import Flask, request, jsonify, send_from_directory, send_file
 import json
 import os
 import re
-from typing import Dict, Any, List
+import sqlite3
+from typing import Dict, Any, List, Optional
 
 from io import BytesIO
 from openpyxl import Workbook
@@ -16,6 +17,7 @@ app = Flask(__name__)
 # === Загрузка каталога ===
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CATALOG_PATH = os.path.join(BASE_DIR, "data", "komplektuyushchie.json")
+PIFAGOR_DB = os.path.join(BASE_DIR, "PIFAGOR_DB", "pifagor.db")
 
 with open(CATALOG_PATH, "r", encoding="utf-8") as f:
     raw = json.load(f)
@@ -270,6 +272,42 @@ def pick_kapleu(diam: str):
 
 def pick_korona():
     return _find(lambda x: _name_has(x, "корона"))
+
+
+# === База справочника компаний ===
+
+def _connect_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(PIFAGOR_DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _parse_production_type(raw: Optional[str]) -> Dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {}
+
+
+def _company_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
+    prod = _parse_production_type(row["production_type"])
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "production_type": prod,
+        "production_primary": prod.get("primary"),
+        "address_full": row["address_full"],
+        "region": row["region"],
+        "district": row["district"],
+        "locality": row["locality"],
+        "street": row["street"],
+        "postal_code": row["postal_code"],
+        "holding_id": row["holding_id"],
+        "holding_name": row["holding_name"],
+        "parent_company_id": row["parent_company_id"],
+    }
 
 
 # New helper for listing available drives
@@ -774,6 +812,173 @@ def api_export():
     stream.seek(0)
     filename = f"KP_{payload.get('tip','X')}_{payload.get('diametr','D')}.xlsx"
     return send_file(stream, as_attachment=True, download_name=filename, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def _list_companies(filters: Dict[str, Any], limit: int, offset: int) -> Dict[str, Any]:
+    base_sql = [
+        "SELECT c.id, c.name, c.production_type, c.address_full, c.postal_code,",
+        "       c.region, c.district, c.locality, c.street, c.parent_company_id,",
+        "       c.holding_id, h.name as holding_name",
+        "FROM companies c",
+        "LEFT JOIN holdings h ON h.id = c.holding_id",
+        "WHERE 1 = 1",
+    ]
+    params: List[Any] = []
+
+    search = filters.get("search")
+    if search:
+        token = f"%{search.lower()}%"
+        base_sql.append("AND (lower(c.name) LIKE ? OR lower(c.address_full) LIKE ?)")
+        params.extend([token, token])
+
+    region = filters.get("region")
+    if region:
+        base_sql.append("AND c.region = ?")
+        params.append(region)
+
+    prod = filters.get("production")
+    if prod:
+        base_sql.append("AND json_extract(c.production_type, '$.primary') = ?")
+        params.append(prod)
+
+    only_roots = bool(filters.get("only_roots"))
+    if only_roots:
+        base_sql.append("AND c.parent_company_id IS NULL")
+
+    filters_sql = "\n".join(base_sql)
+    data_sql = f"{filters_sql}\nORDER BY c.name COLLATE NOCASE\nLIMIT ? OFFSET ?"
+    params_with_limit = params + [limit, offset]
+
+    count_sql = f"SELECT COUNT(*) FROM ({filters_sql}) sub"
+
+    with _connect_db() as conn:
+        rows = conn.execute(data_sql, params_with_limit).fetchall()
+        total = conn.execute(count_sql, params).fetchone()[0]
+
+    items = [_company_row_to_dict(r) for r in rows]
+    return {"items": items, "total": total}
+
+
+def _catalog_facets() -> Dict[str, List[str]]:
+    with _connect_db() as conn:
+        regions = [r[0] for r in conn.execute(
+            "SELECT DISTINCT region FROM companies WHERE region IS NOT NULL AND TRIM(region) <> '' ORDER BY region COLLATE NOCASE"
+        ).fetchall()]
+        productions = [r[0] for r in conn.execute(
+            "SELECT DISTINCT json_extract(production_type, '$.primary') AS prod FROM companies WHERE json_extract(production_type, '$.primary') IS NOT NULL ORDER BY prod COLLATE NOCASE"
+        ).fetchall()]
+    return {"regions": regions, "productions": productions}
+
+
+def _load_company_details(company_id: int) -> Optional[Dict[str, Any]]:
+    sql = """
+        SELECT c.*, h.name AS holding_name, h.region AS holding_region
+        FROM companies c
+        LEFT JOIN holdings h ON h.id = c.holding_id
+        WHERE c.id = ?
+    """
+    with _connect_db() as conn:
+        row = conn.execute(sql, (company_id,)).fetchone()
+        if not row:
+            return None
+
+        company = _company_row_to_dict(row)
+        company["holding_region"] = row["holding_region"]
+
+        child_rows = conn.execute(
+            "SELECT id, name, region FROM companies WHERE parent_company_id = ? ORDER BY name COLLATE NOCASE",
+            (company_id,),
+        ).fetchall()
+        company["children"] = [
+            {"id": r["id"], "name": r["name"], "region": r["region"]}
+            for r in child_rows
+        ]
+
+        contact_rows = conn.execute(
+            """
+            SELECT sc.id, sc.role, sc.full_name, sc.email,
+                   group_concat(scp.phone, ', ') AS phones
+            FROM site_contacts sc
+            JOIN sites s ON s.id = sc.site_id
+            LEFT JOIN site_contact_phones scp ON scp.contact_id = sc.id
+            WHERE s.company_id = ?
+            GROUP BY sc.id
+            ORDER BY sc.role COLLATE NOCASE
+            """,
+            (company_id,),
+        ).fetchall()
+        company["contacts"] = [
+            {
+                "id": r["id"],
+                "role": r["role"],
+                "full_name": r["full_name"],
+                "email": r["email"],
+                "phones": r["phones"],
+            }
+            for r in contact_rows
+        ]
+
+        site_rows = conn.execute(
+            """
+            SELECT sw.id, sw.url
+            FROM site_websites sw
+            JOIN sites s ON s.id = sw.site_id
+            WHERE s.company_id = ?
+            ORDER BY sw.id
+            """,
+            (company_id,),
+        ).fetchall()
+        company["websites"] = [
+            {"id": r["id"], "url": r["url"]}
+            for r in site_rows
+        ]
+
+    return company
+
+
+@app.route("/api/catalog/companies")
+def api_companies_list():
+    try:
+        limit = int(request.args.get("limit", 50))
+    except ValueError:
+        limit = 50
+    limit = max(10, min(limit, 200))
+
+    try:
+        page = int(request.args.get("page", 1))
+    except ValueError:
+        page = 1
+    page = max(1, page)
+    offset = (page - 1) * limit
+
+    filters = {
+        "search": (request.args.get("q") or "").strip(),
+        "region": (request.args.get("region") or "").strip() or None,
+        "production": (request.args.get("production") or "").strip() or None,
+        "only_roots": request.args.get("roots") == "1",
+    }
+
+    try:
+        payload = _list_companies(filters, limit, offset)
+        if request.args.get("facets") == "1":
+            payload["facets"] = _catalog_facets()
+        payload["page"] = page
+        payload["limit"] = limit
+        return jsonify(payload)
+    except sqlite3.Error as exc:
+        return jsonify({"error": "db_error", "details": str(exc)}), 500
+
+
+@app.route("/api/catalog/companies/<int:company_id>")
+def api_company_detail(company_id: int):
+    try:
+        company = _load_company_details(company_id)
+    except sqlite3.Error as exc:
+        return jsonify({"error": "db_error", "details": str(exc)}), 500
+
+    if not company:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify(company)
 
 
 @app.route("/", methods=["GET"])

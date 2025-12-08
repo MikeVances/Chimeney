@@ -122,6 +122,212 @@ select, input[type="number"], button {
   display: block;
 }
 
+/* ---------------- Directory ---------------- */
+
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(15,111,255,.3);
+  background: transparent;
+  color: #0f6fff;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, border-color .2s ease;
+}
+.ghost-btn:hover,
+.ghost-btn:focus-visible {
+  background: rgba(15,111,255,.08);
+  border-color: rgba(15,111,255,.6);
+}
+
+.directory {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+.directory-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.directory-note { margin: 4px 0 0; color: #666; }
+
+.directory-body {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.directory-filters {
+  flex: 0 0 260px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.directory-filters select,
+.directory-filters input[type="search"] {
+  width: 100%;
+}
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+.search-row button { flex: 0 0 auto; width: auto; }
+.checkbox-inline { font-size: 14px; display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.checkbox-inline input { width: auto; margin: 0; }
+
+.directory-content {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-height: 0;
+}
+
+.directory-list-panel,
+.directory-details {
+  flex: 1;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.directory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+.directory-list li {
+  padding: 12px;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background .2s ease;
+}
+.directory-list li:hover {
+  background: #f9fafb;
+}
+.directory-list li.active {
+  background: rgba(15,111,255,.08);
+}
+.directory-list h4 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.directory-list .meta {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.directory-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 12px;
+  font-size: 14px;
+}
+.directory-empty {
+  margin-top: 16px;
+  font-size: 14px;
+  color: #6b7280;
+}
+.directory-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.directory-pagination button { width: auto; }
+
+.directory-details-placeholder {
+  margin: auto;
+  text-align: center;
+  color: #6b7280;
+}
+.directory-details h3 {
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+.directory-details .section {
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #eef2ff;
+  color: #3730a3;
+}
+.contact-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.contact-card h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.contact-card p {
+  margin: 0;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+@media (max-width: 1024px) {
+  .directory-body { flex-direction: column; }
+  .directory-filters { flex-direction: row; flex-wrap: wrap; }
+  .directory-filters > * { flex: 1 1 160px; }
+  .search-row { flex-direction: column; }
+  .search-row button { width: 100%; }
+  .directory-content { flex-direction: column; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .directory-filters,
+  .directory-list-panel,
+  .directory-details {
+    background: #1f1f1f;
+    border-color: #333;
+  }
+  .directory-list { border-color: #2d2d2d; }
+  .directory-list li { border-color: #2d2d2d; }
+  .directory-list li:hover { background: rgba(255,255,255,.04); }
+  .directory-list li.active { background: rgba(96,165,250,.15); }
+  .directory-note,
+  .directory-empty,
+  .directory-details-placeholder,
+  .contact-card p,
+  .directory-list .meta { color: #9ca3af; }
+  .ghost-btn { border-color: rgba(255,255,255,.25); color: #93c5fd; }
+  .ghost-btn:hover,
+  .ghost-btn:focus-visible { background: rgba(96,165,250,.15); }
+  .badge { background: rgba(96,165,250,.2); color: #bfdbfe; }
+  .contact-card { border-color: #333; }
+}
+
 /* ---------------- Hint bubble ---------------- */
 
 .hint {

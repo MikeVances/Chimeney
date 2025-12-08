@@ -150,20 +150,66 @@
       </p>
     </section>
 
-    <!-- Page 2: Coming soon -->
-    <section class="page" id="page-upcoming">
-      <div class="coming-soon">
-        <div class="coming-card">
-          <h2>🚀 Скоро выпуск</h2>
-          <p>Следите за обновлениями — мы готовим новые инструменты для Chimeney.</p>
-          <small style="color:#999">Смахните, чтобы вернуться</small>
+    <!-- Page 2: Directory -->
+    <section class="page" id="page-directory">
+      <div class="directory">
+        <header class="directory-head">
+          <div>
+            <h2>Справочник компаний</h2>
+            <p class="directory-note">Каталог предприятий из базы PIFAGOR (режим только для чтения).</p>
+          </div>
+          <button type="button" class="ghost-btn" id="directory-refresh">Обновить</button>
+        </header>
+
+        <div class="directory-body">
+          <aside class="directory-filters" aria-label="Фильтры справочника">
+            <label for="directory-search">Поиск</label>
+            <div class="search-row">
+              <input type="search" id="directory-search" placeholder="Название или адрес" autocomplete="off" />
+              <button type="button" id="directory-search-btn">Найти</button>
+            </div>
+
+            <label for="directory-region">Регион</label>
+            <select id="directory-region">
+              <option value="">Все регионы</option>
+            </select>
+
+            <label for="directory-production">Тип производства</label>
+            <select id="directory-production">
+              <option value="">Любой тип</option>
+            </select>
+
+            <label class="checkbox-inline"><input type="checkbox" id="directory-roots" /> Только головные компании</label>
+          </aside>
+
+          <div class="directory-content">
+            <div class="directory-list-panel">
+              <div class="directory-list-head">
+                <strong id="directory-counter">0 записей</strong>
+                <span id="directory-status" aria-live="polite"></span>
+              </div>
+              <ul class="directory-list" id="directory-list" aria-live="polite"></ul>
+              <div class="directory-empty" id="directory-empty" hidden>Данные не найдены, измените параметры поиска.</div>
+              <div class="directory-pagination">
+                <button type="button" id="directory-prev" class="ghost-btn">Назад</button>
+                <span id="directory-page">Страница 1</span>
+                <button type="button" id="directory-next" class="ghost-btn">Вперёд</button>
+              </div>
+            </div>
+
+            <div class="directory-details" id="directory-details">
+              <div class="directory-details-placeholder">
+                Выберите компанию из списка, чтобы увидеть подробности: адрес, контакты, филиалы и принадлежность к холдингу.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
   </div>
 
   <div class="pager" id="pager" aria-label="Навигация по страницам"></div>
-  <div class="hint">Смахните чтобы увидеть «Скоро выпуск»</div>
+  <div class="hint">Смахните, чтобы открыть справочник компаний</div>
 
   <script src="/web/script.js"></script>
 </body>
