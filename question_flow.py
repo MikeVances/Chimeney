@@ -96,7 +96,7 @@ question_flow = {
     "Корона": {
         "question": "корона",
         "type": "checkbox",
-        "depends_on": {"Тип шахты": ["VBA", "VBP"], "Тип клапана": ["pov", "grav"]},
+        "depends_on": {"Тип шахты": ["VBA", "VBP", "VBR"], "Тип клапана": ["pov", "grav"]},
         "param": "korona"
     },
     "Удлинение (м)": {

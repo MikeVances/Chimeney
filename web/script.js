@@ -124,9 +124,19 @@
     if(!colKorona) return; // Korona UI may not exist in current HTML
     const t = fldType.value;
     const k = fldKlapan.value;
-    const show = (t === 'приточная пассивная' || t === 'приточная активная') && (k === 'поворотный' || k === 'гравитационный');
+    const show = (t === 'приточная пассивная' || t === 'приточная активная' || t === 'приточная с подмешиванием') &&
+                 (k === 'поворотный' || k === 'гравитационный');
     colKorona.classList.toggle('hidden', !show);
     if(!show && cbKorona){ cbKorona.checked = false; }
+  }
+
+  function toggleKapVisibility(){
+    if(!cbKap) return;
+    const t = fldType.value;
+    const show = (t === 'вытяжная');
+    const wrapper = cbKap.closest('div');
+    if(wrapper){ wrapper.classList.toggle('hidden', !show); }
+    if(!show){ cbKap.checked = false; }
   }
 
   function toggleMountVisibility(){
@@ -289,10 +299,10 @@
     return withBr;
   }
 
-  fldKlapan.addEventListener('change', ()=>{ enforceValveConstraints(); toggleValveFields(); toggleMotorFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
-  fldType.addEventListener('change', ()=>{ enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
+  fldKlapan.addEventListener('change', ()=>{ enforceValveConstraints(); toggleValveFields(); toggleMotorFields(); toggleKoronaVisibility(); toggleKapVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
+  fldType.addEventListener('change', ()=>{ enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); toggleKapVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility(); });
   fldDiam.addEventListener('change', ()=>{ enforcePowerByDiamAndType(); });
-  enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility();
+  enforceValveConstraints(); toggleMotorFields(); toggleValveFields(); toggleKoronaVisibility(); toggleKapVisibility(); enforcePowerByDiamAndType(); toggleMountVisibility();
 
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
@@ -314,7 +324,7 @@
       avtomat: cbAuto.checked,
       kapleulavlivatel: cbKap.checked,
       montazhny_komplekt: cbMount ? cbMount.checked : false,
-      korona: (cbKorona ? ( (fldType.value === 'приточная пассивная' || fldType.value === 'приточная активная') && fldKlapan.value !== 'двустворчатый' ? cbKorona.checked : false ) : false),
+      korona: (cbKorona ? ( (fldType.value === 'приточная пассивная' || fldType.value === 'приточная активная' || fldType.value === 'приточная с подмешиванием') && fldKlapan.value !== 'двустворчатый' ? cbKorona.checked : false ) : false),
       udlinenie_m: Number(fldExt.value || 0)
     };
     lastPayload = payload;
